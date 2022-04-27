@@ -1,0 +1,114 @@
+% *** tangle ***
+% A package for drawing string diagrams exported from https://varkor.github.io/tangle.
+%
+% Version: 1.0.0
+% Authors:
+% - varkor (https://github.com/varkor)
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{tangle}[2021/04/27 tangle]
+
+% `xcolor` is required for `\definecolor`.
+\RequirePackage{xcolor}
+% `tikz` is necessary to draw string diagrams.
+\RequirePackage{tikz}
+\usetikzlibrary{calc}
+% `etoolbox` is required for `\ifdefequal`.
+\RequirePackage{etoolbox}
+
+% An internal command to check whether two colours are equal.
+\makeatletter
+\newcommand{\tgColourCheck}[3]{%
+    \extractcolorspec{#1}{\@spec@A}
+    \extractcolorspec{#2}{\@spec@B}
+    \ifdefequal{\@spec@A}{\@spec@B}{\renewcommand{#3}{0}}{\renewcommand{#3}{1}}
+}
+\makeatother
+
+% The `grid` option will draw a grid over every diagram, for debugging purposes.
+\newif\ifgrid
+\DeclareOption{grid}{\gridtrue}
+\ProcessOptions\relax
+
+% \tgColours{colour-list}
+\newcounter{tgColourIdx}
+\newcommand{\tgColours}[1]{%
+    \setcounter{tgColourIdx}{0}
+    \renewcommand*{\do}[1]{\definecolor{\tgColour\thetgColourIdx}{HTML}{##1}\stepcounter{tgColourIdx}}
+    \docsvlist{#1}
+}
+
+% \tgColour{index}
+\newcommand{\tgColour}[1]{colour-#1}
+
+% Tiles
+
+% \tgBlank{position}{colour}
+\newcommand{\tgBlank}[2]{%
+    \fill[#2] #1 rectangle +(1,1);
+}
+
+\newcommand{\tgBorderN}{}
+\newcommand{\tgBorderE}{}
+\newcommand{\tgBorderS}{}
+\newcommand{\tgBorderW}{}
+% \tgBorderA{position}{colour-NW}{colour-NE}{colour-SE}{colour-SW}
+\newcommand{\tgBorderA}[5]{%
+    \fill[#2] #1 rectangle +(.5,.5);
+    \fill[#3] ($#1 + (.5,0)$) rectangle +(.5,.5);
+    \fill[#4] ($#1 + (.5,.5)$) rectangle +(.5,.5);
+    \fill[#5] ($#1 + (0,.5)$) rectangle +(.5,.5);
+    \tgColourCheck{#2}{#3}{\tgBorderN}
+    \tgColourCheck{#3}{#4}{\tgBorderE}
+    \tgColourCheck{#4}{#5}{\tgBorderS}
+    \tgColourCheck{#5}{#2}{\tgBorderW}
+    \tgBorder{#1}{\tgBorderN}{\tgBorderE}{\tgBorderS}{\tgBorderW}
+}
+
+% \tgBorder{position}{colour-N}{colour-E}{colour-S}{colour-W}
+\newcommand{\tgBorder}[5]{%
+    \ifnum1=0#2\relax \draw ($#1 + (.5,.5)$) -- +(0,-.5); \fi
+    \ifnum1=0#3\relax \draw ($#1 + (.5,.5)$) -- +(.5,0); \fi
+    \ifnum1=0#4\relax \draw ($#1 + (.5,.5)$) -- +(0,.5); \fi
+    \ifnum1=0#5\relax \draw ($#1 + (.5,.5)$) -- +(-.5,0); \fi
+}
+
+% \tgBorderC{position}{angle}{colour-outer}{colour-inner}
+\newcommand{\tgBorderC}[4]{%
+    \begin{scope}[shift={($#1 + (.5,.5)$)}, rotate=#2 * 90]
+        \fill[#3] (-.5,-.5) -- ++(.5,0) arc (180:90:.5) -- (.5,.5) -- ++(-1,0) -- cycle;
+        \fill[#4] (0,-.5) arc (180:90:.5) -- (.5,-.5) -- cycle;
+        \draw (0,-.5) arc (180:90:.5);
+    \end{scope}
+}
+
+% \tgCell[width]{position}{text}
+\newcommand{\tgCell}[3][0]{%
+    \filldraw[fill=white] ($#2 - (#1,0) + (.5,.5) + (0,0.25)$) arc (-270:-90:0.25) -- ++(#1 * 2,0) arc (-90:90:0.25) -- cycle;
+    \node at ($#2 + (.5,.5)$) {$#3$};
+}
+
+% \tgArrow{position}{angle}
+\newcommand{\tgArrow}[2]{%
+    \begin{scope}[shift={($#1 + (.5,.5)$)}, rotate=#2 * 90]
+        \draw ($({sqrt(2 * 0.08 ^ 2) / 2}, 0) - (0.08,0.08)$) -- ++(0.08,0.08) -- ++(-0.08,0.08);
+    \end{scope}
+}
+
+% \tgAxisLabel{position}{anchor}{text}
+\newcommand{\tgAxisLabel}[3]{%
+    \node[anchor=#2, scale=0.8] at #1 {$#3$};
+}
+
+\NewDocumentEnvironment{tangle}{m}{%
+    \begin{tikzpicture}[baseline={([yshift=-.5ex]current bounding box.center)}, x=1cm, y=-1cm, line width=1]
+        \useasboundingbox (-.5,-.5) rectangle ($#1 + (.5, .5)$);
+}{%
+        \ifgrid
+            \draw[xstep=.5,ystep=-.5,lightgray,very thin] (0,0) grid #1;
+            \draw[xstep=1,ystep=-1,gray,thin] (0,0) grid #1;
+        \fi
+    \end{tikzpicture}
+}
+
+\endinput
