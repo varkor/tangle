@@ -6,7 +6,7 @@
 % - varkor (https://github.com/varkor)
 
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{tangle}[2021/04/27 tangle]
+\ProvidesPackage{tangle}[2021/05/27 tangle]
 
 % `xcolor` is required for `\definecolor`.
 \RequirePackage{xcolor}
@@ -84,7 +84,7 @@
 
 % \tgCell[width]{position}{text}
 \newcommand{\tgCell}[3][0]{%
-    \filldraw[fill=white] ($#2 - (#1,0) + (.5,.5) + (0,0.25)$) arc (-270:-90:0.25) -- ++(#1 * 2,0) arc (-90:90:0.25) -- cycle;
+    \filldraw[fill=white] ($#2 - (#1 / 2,0) + (.5,.5) + (0,0.25)$) arc (-270:-90:0.25) -- ++(#1,0) arc (-90:90:0.25) -- cycle;
     \node at ($#2 + (.5,.5)$) {$#3$};
 }
 

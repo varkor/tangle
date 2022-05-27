@@ -21,7 +21,8 @@ class Label {
                         // order. This is sufficient for our purposes, however.
                         state.focus_input(this);
                     }
-                } else {
+                }
+                if (event.button === 2) {
                     // We delete labels by right-clicking on them.
                     state.tangle.remove_label(this.position, direction);
                     this.element.remove();
@@ -210,22 +211,12 @@ Annotation.Cell = class extends Annotation {
                     } else {
                         state.focus_input(this);
                     }
-                    // When a cell is clicked on, we want to display the size input. At present,
-                    // there is a single global size input, so we need to move that to the correct
-                    // position and reveal it.
-                    const size_input = new DOM.Element(document.body).query_selector(".size-input");
-                    size_input.class_list.remove("hidden");
-                    size_input.set_style({
-                        left: `${left}px`,
-                        top: `${top}px`,
-                    });
-                    // We should not be able to change the width of a cell to a negative integer.
-                    size_input.query_selector("button").element.disabled =
-                        state.selected.width === 0;
                 }
                 // Rick-clicking on a cell removes it.
                 if (event.button === 2) {
                     tangle.remove_annotation(this);
+                    // Hide the `<input>` and size input.
+                    state.focus_input(null);
                 }
             }
         }).listen("mouseup", (event) => {
@@ -262,7 +253,7 @@ Annotation.Cell = class extends Annotation {
     set_width(width) {
         this.width = width;
         this.element.set_style({ width: `${
-            this.width * CONSTANTS.TILE_WIDTH * 2 + CONSTANTS.CELL_SIZE
+            this.width * CONSTANTS.TILE_WIDTH + CONSTANTS.CELL_SIZE
         }px` });
     }
 

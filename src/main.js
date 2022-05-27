@@ -139,14 +139,32 @@ const state = {
             // Select the element.
             on.element.class_list.add("selected");
             // Display the `<input>`.
-            state.input.parent.class_list.remove("hidden");
-            const input = state.input.element;
+            this.input.parent.class_list.remove("hidden");
+            const input = this.input.element;
             input.value = on.text;
             input.focus();
             input.setSelectionRange(0, input.value.length);
+            if (on instanceof Annotation.Cell) {
+                // If we're focusing on a cell, we want to move the size input to the correct
+                // position and display it. At present, there is a single global size input, so we
+                // need to move that to the correct position and reveal it.
+                const size_input = this.element.query_selector(".size-input");
+                size_input.class_list.remove("hidden");
+                const [left, top] = [
+                    on.position.x * CONSTANTS.TILE_WIDTH - CONSTANTS.TILE_WIDTH / 2,
+                    on.position.y * CONSTANTS.TILE_HEIGHT - CONSTANTS.TILE_HEIGHT / 2,
+                ];
+                size_input.set_style({
+                    left: `${left}px`,
+                    top: `${top}px`,
+                });
+                // We should not be able to change the width of a cell to a negative integer.
+                size_input.query_selector("button").element.disabled =
+                    this.selected.width === 0;
+            }
         } else {
             // Hide the `<input>`.
-            state.input.parent.class_list.add("hidden");
+            this.input.parent.class_list.add("hidden");
             this.element.query_selector_all(".size-input").forEach((size_input) => {
                 size_input.class_list.add("hidden");
             });
@@ -324,7 +342,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const tools = new DOM.Div({
         id: "tools",
     });
-    tools.listen("mousedown", (event) => event.stopPropagation());
+    tools.listen("mousedown", (event) => {
+        event.stopPropagation();
+        state.focus_input(null);
+    });
 
     // A helper function for adding a section to the tool sidebar.
     const add_section = (name) => {
@@ -486,7 +507,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 // be calculated differently.
                 switch (state.mode.type.alignment) {
                     case ALIGNMENT.CENTRE:
-                        point = new Point(x + 0.5, y + 0.5);
+                        const [xh, yh] = [
+                            Math.round(pointer_position.x / (CONSTANTS.TILE_WIDTH / 2)) / 2,
+                            Math.round(pointer_position.y / (CONSTANTS.TILE_HEIGHT / 2)) / 2,
+                        ];
+                        point = new Point(xh + 0.5, yh + 0.5);
                         break;
                     case ALIGNMENT.EDGE:
                         // Work out the closest edge. This is a little subtle, because we
@@ -515,7 +540,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     switch (state.mode.type) {
                         // E.g. when we place a cell, we want to focus it immediately.
                         case Annotation.Cell:
-                            state.focus_input(annotation);
+                            delay(() => state.focus_input(annotation));
                             break;
                     }
                 }
@@ -561,9 +586,14 @@ document.addEventListener("DOMContentLoaded", () => {
         // Pressing escape hides the export pane.
         if (event.key === "Escape") {
             event.preventDefault();
+            // Hide the export pane if it is visible.
             if (!export_pane.class_list.contains("hidden")) {
                 export_pane.class_list.add("hidden");
                 return;
+            }
+            // Hide the `<input>` and size input if they are visible.
+            if (state.selected !== null) {
+                state.focus_input(null);
             }
         }
         // Saving with ⌘S or Control + S.
