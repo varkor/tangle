@@ -303,7 +303,7 @@ Annotation.Arrow = class extends Annotation {
             left: `${left}px`,
             top: `${top}px`,
         }).add(this.svg).listen("mousedown", (event) => {
-            if (state.in_mode(UIMode.Annotation)) {
+            if (state.in_mode(UIMode.Default, UIMode.Annotation)) {
                 event.stopPropagation();
                 // If we left-click on an arrow, we flip its direction.
                 if (event.button === 0) {

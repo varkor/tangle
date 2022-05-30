@@ -141,14 +141,6 @@ button {
     background: hsl(0, 0%, 90%, 0.9);
 }
 
-.arrow {
-    pointer-events: none;
-}
-
-.mode-annotation .arrow {
-    pointer-events: auto;
-}
-
 /* Anchors and axis labels */
 
 .anchor {
