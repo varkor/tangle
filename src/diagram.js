@@ -8,39 +8,33 @@ class Label {
         // time.
         let was_selected;
         this.element = new DOM.Div({ class: "label" }).listen("mousedown", (event) => {
-            // We always want clicking on a label to block the event from anything else underneath
-            // the label, but only want the click to have an effect in the default mode.
             event.stopPropagation();
-            if (state.in_mode(UIMode.Default)) {
-                was_selected = false;
-                if (event.button === 0) {
-                    if (state.selected === this && document.activeElement !== state.input.element) {
-                        was_selected = true;
-                    } else {
-                        // This activates the `<input>` but doesn't actually focus it due to event
-                        // order. This is sufficient for our purposes, however.
-                        state.focus_input(this);
-                    }
+            was_selected = false;
+            if (event.button === 0) {
+                if (state.selected === this && document.activeElement !== state.input.element) {
+                    was_selected = true;
+                } else {
+                    // This activates the `<input>` but doesn't actually focus it due to event
+                    // order. This is sufficient for our purposes, however.
+                    state.focus_input(this);
                 }
-                if (event.button === 2) {
-                    // We delete labels by right-clicking on them.
-                    state.tangle.remove_label(this.position, direction);
-                    this.element.remove();
-                    // Hide the `<input>`.
-                    state.focus_input(null);
-                }
+            }
+            if (event.button === 2) {
+                // We delete labels by right-clicking on them.
+                state.tangle.remove_label(this.position, direction);
+                this.element.remove();
+                // Hide the `<input>`.
+                state.focus_input(null);
             }
         }).listen("mouseup", (event) => {
             event.stopPropagation();
-            if (state.in_mode(UIMode.Default)) {
-                if (event.button === 0) {
-                    // When we create a `Label` from an `Anchor`, we want to focus the input
-                    // immediately, hence the second condition.
-                    if (was_selected || this.text.trim() === "") {
-                        // Note the comment above about `focus_input`: the previous invocation did
-                        // not actually focus the input, so we call it here on `mouseup` instead.
-                        state.focus_input(this);
-                    }
+            if (event.button === 0) {
+                // When we create a `Label` from an `Anchor`, we want to focus the input
+                // immediately, hence the second condition.
+                if (was_selected || this.text.trim() === "") {
+                    // Note the comment above about `focus_input`: the previous invocation did
+                    // not actually focus the input, so we call it here on `mouseup` instead.
+                    state.focus_input(this);
                 }
             }
         });

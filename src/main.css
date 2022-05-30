@@ -164,7 +164,7 @@ button {
     cursor: default;
 }
 
-.mode-default .anchor:hover {
+.anchor:hover {
     background: hsl(0, 0%, 35%);
 }
 
@@ -183,7 +183,6 @@ button {
 
 .mode-default .anchor {
     display: block;
-    pointer-events: auto;
 }
 
 .anchor:not(:empty) {
