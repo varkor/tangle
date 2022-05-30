@@ -127,7 +127,7 @@ button {
     overflow: hidden;
     z-index: 2;
 
-    background: hsla(0, 0%, 100%, 1);
+    background: hsla(0, 0%, 100%, 0.9);
     border: black 2px solid;
     border-radius: 16px;
 
@@ -137,15 +137,7 @@ button {
     cursor: default;
 }
 
-.mode-colour .cell {
-    background: hsla(0, 0%, 100%, 0.9);
-}
-
 .cell.selected {
-    background: hsl(0, 0%, 90%, 1);
-}
-
-.mode-colour .cell.selected {
     background: hsl(0, 0%, 90%, 0.9);
 }
 
@@ -363,7 +355,7 @@ button {
     transform: translate(-50%, 16px);
     white-space: nowrap;
     overflow: hidden;
-    z-index: 2;
+    z-index: 3;
 
     border: hsl(0, 0%, 80%) 1px solid;
     border-radius: 32px;
