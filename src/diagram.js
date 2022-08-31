@@ -206,12 +206,12 @@ Annotation.Cell = class extends Annotation {
                         state.focus_input(this);
                     }
                 }
-                // Rick-clicking on a cell removes it.
-                if (event.button === 2) {
-                    tangle.remove_annotation(this);
-                    // Hide the `<input>` and size input.
-                    state.focus_input(null);
-                }
+            }
+            // Rick-clicking on a cell removes it.
+            if (event.button === 2) {
+                tangle.remove_annotation(this);
+                // Hide the `<input>` and size input.
+                state.focus_input(null);
             }
         }).listen("mouseup", (event) => {
             if (state.in_mode(UIMode.Default, UIMode.Annotation)) {
@@ -313,10 +313,10 @@ Annotation.Arrow = class extends Annotation {
                         transform: `rotate(${this.direction / 4}turn)`,
                     });
                 }
-                // If we right-click on an arrow, we delete it.
-                if (event.button === 2) {
-                    tangle.remove_annotation(this);
-                }
+            }
+            // If we right-click on an arrow, we delete it.
+            if (event.button === 2) {
+                tangle.remove_annotation(this);
             }
         });
     }
