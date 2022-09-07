@@ -179,7 +179,7 @@ class Annotation {
 /// A cell typically represents a 2-cell, which is depicted as a circle (more generally, a rounded
 /// rectangle) with a LaTeX label.
 Annotation.Cell = class extends Annotation {
-    constructor(tangle, position, { text = "", width = 0 }) {
+    constructor(tangle, position, { text = "", width = 0, height = 0 }) {
         super(tangle, position);
 
         const [left, top] = [
@@ -223,7 +223,7 @@ Annotation.Cell = class extends Annotation {
             }
         });
         this.set_text(text);
-        this.set_width(width);
+        this.set_dimensions(width, height);
     }
 
     /// Update the text of the label and render it with KaTeX.
@@ -244,15 +244,20 @@ Annotation.Cell = class extends Annotation {
     }
 
     /// Update the width of the cell.
-    set_width(width) {
+    set_dimensions(width, height) {
         this.width = width;
+        this.height = height;
         this.element.set_style({ width: `${
             this.width * CONSTANTS.TILE_WIDTH + CONSTANTS.CELL_SIZE
+        }px`, height: `${
+            this.height * CONSTANTS.TILE_HEIGHT + CONSTANTS.CELL_SIZE
         }px` });
     }
 
     export_tikz(origin) {
-        return `\\tgCell${this.width > 0 ? `[${this.width}]` : ""}{(${
+        return `\\tgCell${
+            this.width > 0 || this.height > 0 ? `[(${this.width},${this.height})]` : ""
+        }{(${
             this.position.x - 0.5 - origin.x
         },${
             this.position.y - 0.5 - origin.y

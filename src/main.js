@@ -321,21 +321,38 @@ document.addEventListener("DOMContentLoaded", () => {
     const size_input = new DOM.Div({
         class: "size-input hidden",
     });
-    size_input.listen("mousedown", (event) => event.stopPropagation());
-    // The "-" button.
-    const smaller = new DOM.Element("button").add("-").listen("mousedown", (event) => {
+    const smaller_width = new DOM.Element("button").add_to(size_input);
+    new DOM.Element("button").add_to(size_input);
+    const smaller_height = new DOM.Element("button").add_to(size_input);
+    new DOM.Element("button").add_to(size_input);
+    size_input.listen("mousedown", (event) => {
+        event.stopPropagation();
         if (event.button === 0) {
-            state.selected.set_width(Math.max(0, state.selected.width - 1));
-            smaller.element.disabled = state.selected.width === 0;
+            const rect = size_input.bounding_rect();
+            const left = event.clientX - rect.left, top = event.clientY - rect.top;
+            // Find the edge to which the cursor is the closest.
+            switch (Math.min(left, 64 - left, top, 64 - top)) {
+                case left:
+                    state.selected.set_dimensions(
+                        Math.max(0, state.selected.width - 1),
+                        state.selected.height,
+                    );
+                    break;
+                case 64 - left:
+                    state.selected.set_dimensions(state.selected.width + 1, state.selected.height);
+                    break;
+                case 64 - top:
+                    state.selected.set_dimensions(
+                        state.selected.width,
+                        Math.max(0, state.selected.height - 1),
+                    );
+                    break;
+                case top:
+                    state.selected.set_dimensions(state.selected.width, state.selected.height + 1);
+                    break;
+            }
         }
-    }).add_to(size_input);
-    // The "+" button.
-    new DOM.Element("button").add("+").listen("mousedown", (event) => {
-        if (event.button === 0) {
-            state.selected.set_width(state.selected.width + 1);
-            smaller.element.disabled = state.selected.width === 0;
-        }
-    }).add_to(size_input);
+    });
     canvas.add(size_input);
 
     // The sidebar for the different tools that may be used (e.g. tiles, annotations, colours).

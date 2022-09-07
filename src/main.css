@@ -137,6 +137,12 @@ button {
     cursor: default;
 }
 
+.cell .katex {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
 .cell.selected {
     background: hsl(0, 0%, 90%, 0.9);
 }
@@ -343,12 +349,13 @@ button {
 .size-input {
     position: absolute;
     width: 64px;
+    height: 64px;
     transform: translate(-50%, 16px);
     white-space: nowrap;
     overflow: hidden;
     z-index: 3;
 
-    border: hsl(0, 0%, 80%) 1px solid;
+    background: hsl(0, 0%, 40%);
     border-radius: 32px;
 }
 
@@ -357,33 +364,75 @@ button {
 }
 
 .size-input button {
-    vertical-align: middle;
-    width: 32px;
-    height: 32px;
+    display: block;
+    position: absolute;
+    width: 0;
+    height: 0;
+    padding: 0;
 
-    background: hsl(0, 0%, 95%);
+    background: transparent;
     border: none;
 
     color: black;
 }
 
-.size-input button:disabled {
-    background: hsl(0, 0%, 90%);
-
-    color: hsl(0, 0%, 80%);
+.size-input button::before {
+    display: block;
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
 }
 
-.size-input button:not(:disabled):hover {
-    background: hsl(0, 0%, 100%);
+.size-input button:nth-child(1) {
+    left: 0;
+    top: 1px;
+    border-left: 31px solid hsl(0, 0%, 95%);
+    border-top: 31px solid transparent;
+    border-bottom: 31px solid transparent;
+}
+.size-input button:nth-child(1)::before {
+    content: "–";
+    left: -32px;
+    top: -16px;
+}
+.size-input button:nth-child(2) {
+    right: 0;
+    top: 1px;
+    border-right: 31px solid hsl(0, 0%, 95%);
+    border-top: 31px solid transparent;
+    border-bottom: 31px solid transparent;
+}
+.size-input button:nth-child(2)::before {
+    content: "+";
+    left: 0;
+    top: -16px;
+}
+.size-input button:nth-child(3) {
+    left: 1px;
+    bottom: 0;
+    border-bottom: 31px solid hsl(0, 0%, 95%);
+    border-left: 31px solid transparent;
+    border-right: 31px solid transparent;
+}
+.size-input button:nth-child(3)::before {
+    content: "–";
+    left: -16px;
+    top: 0;
+}
+.size-input button:nth-child(4) {
+    left: 1px;
+    top: 0;
+    border-top: 31px solid hsl(0, 0%, 95%);
+    border-left: 31px solid transparent;
+    border-right: 31px solid transparent;
+}
+.size-input button:nth-child(4)::before {
+    content: "+";
+    left: -16px;
+    top: -32px;
 }
 
-.size-input button:not(:disabled):active {
-    background: hsl(0, 0%, 90%);
-}
-
-.size-input button:first-child {
-    border-right: hsl(0, 0%, 80%) 1px solid;
-}
 
 /* Export pane */
 

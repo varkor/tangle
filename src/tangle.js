@@ -362,8 +362,14 @@ TangleImportExport.base64 = new class extends TangleImportExport {
                 case Annotation.Cell:
                     id = 0;
                     parameters = [annotation.text];
-                    if (annotation.width > 0) {
+                    // If `height` is nonzero, we must always push the `width` so that the `height`
+                    // is stored at the correct index, but if the `height` is zero, there is no need
+                    // to store it.
+                    if (annotation.width > 0 || annotation.height > 0) {
                         parameters.push(annotation.width);
+                        if (annotation.height > 0) {
+                            parameters.push(annotation.height);
+                        }
                     }
                     break;
                 case Annotation.Arrow:
@@ -475,7 +481,9 @@ TangleImportExport.base64 = new class extends TangleImportExport {
         for (const region of region_order) {
             const colour = i < region_colours.length ? region_colours[i] - 1 : -1;
             while (colour >= state.colours.length) {
-                state.colours.push(default_colours.length > 0 ? default_colours.shift() : "#FFFFFF");
+                state.colours.push(
+                    default_colours.length > 0 ? default_colours.shift() : "#FFFFFF"
+                );
             }
             if (colour !== -1) {
                 region.colour = colour;
@@ -493,8 +501,8 @@ TangleImportExport.base64 = new class extends TangleImportExport {
             switch (id) {
                 case i++:
                     type = Annotation.Cell;
-                    const [text, width = 0] = linear_parameters;
-                    parameters = { text, width };
+                    const [text, width = 0, height = 0] = linear_parameters;
+                    parameters = { text, width, height };
                     break;
                 case i++:
                     type = Annotation.Arrow;
