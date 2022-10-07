@@ -17,6 +17,17 @@ class Region {
         this.colour = null;
     }
 
+    // Combines `this` region with the `other` region. In practice, this means all the vertices from
+    // `other` are moved to `this` region. The colour of `this` is usually preserved, though if
+    // `this` is uncoloured and the `other` is coloured, we also inherit the colour.
+    combine(other) {
+        this.vertices = new Set([...this.vertices, ...other.vertices]);
+        for (const vertex of other.vertices) {
+            vertex.region = this;
+        }
+        this.colour = this.colour !== null ? this.colour : other.colour;
+    }
+
     add_vertex(element) {
         const vertex = new Vertex(this, element);
         this.vertices.add(vertex);
@@ -54,13 +65,10 @@ class RegionGraph {
         v1.connections.add(v2);
         v2.connections.add(v1);
         if (v1.region === v2.region) {
-            return new Set();
+            return;
         }
-        this.regions.delete(v2.region)
-        v1.region.vertices = new Set([...v1.region.vertices, ...v2.region.vertices]);
-        for (const vertex of v2.region.vertices) {
-            vertex.region = v1.region;
-        }
+        this.regions.delete(v2.region);
+        v1.region.combine(v2.region);
     }
 
     /// Disconnect two vertices. If they are now no longer connected by a path, we create a new

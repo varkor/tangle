@@ -133,7 +133,7 @@ class Tile {
         region.colour = colour;
         // ...and effect the change.
         for (const vertex of region.vertices) {
-            vertex.element.set_style({ fill: state.colours[colour] });
+            vertex.element.set_style({ fill: colour !== null ? state.colours[colour] : "white" });
         }
     }
 

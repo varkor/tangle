@@ -639,7 +639,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (/^[a-f0-9]{6}$/i.test(code)) {
                 return `#${code.toUpperCase()}`;
             } else {
-                // If we can't parse the passed coour, default to white.
+                // If we can't parse the passed colour, default to white.
                 return "white";
             }
         });
