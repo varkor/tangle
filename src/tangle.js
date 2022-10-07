@@ -203,7 +203,13 @@ class Tangle {
                 if (this.labels.has(`${adjacent_position}`)) {
                     const label = this.labels.get(`${adjacent_position}`)[i_op];
                     if (label !== null) {
+                        const text = label.text;
                         this.remove_label(adjacent_position, i_op);
+                        // We try to add the label back, on the new tile.
+                        // Check whether there's space for the label.
+                        if (!this.tiles.has(`${position.add(Tangle.adjacent_offset(i_op))}`)) {
+                            tile.set_label(i_op, text);
+                        }
                     }
                 }
             }
