@@ -23,8 +23,10 @@ class Label {
                 // We delete labels by right-clicking on them.
                 state.tangle.remove_label(this.position, direction);
                 this.element.remove();
-                // Hide the `<input>`.
-                state.focus_input(null);
+                // Hide the `<input>` if the label was focused.
+                if (state.selected === this) {
+                    state.focus_input(null);
+                }
             }
         }).listen("mouseup", (event) => {
             event.stopPropagation();

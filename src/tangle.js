@@ -242,6 +242,14 @@ class Tangle {
             }
         }
         // Remove labels attached to the tile.
+        if (this.labels.has(`${tile.position}`)) {
+            for (const label of this.labels.get(`${tile.position}`).values()) {
+                // Hide the `<input>` if the label was focused.
+                if (state.selected === label) {
+                    state.focus_input(null);
+                }
+            }
+        }
         this.labels.delete(`${tile.position}`);
         // Update anchors for tiles adjacent to the current one.
         for (let i = 0; i < 4; ++i) {
