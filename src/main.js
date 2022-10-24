@@ -99,6 +99,9 @@ const state = {
     selected: null,
     // A convenience variable for accessing the `<input>` element used for inputting labels.
     input: null,
+    // Whether the next [horizontal, vertical] annotation should be flipped. Used to preserve
+    // the direction of the previously added annotation where possible.
+    annotation_flip: [false, true],
     // The KaTeX instance used to render LaTeX.
     KaTeX: null,
 
@@ -555,9 +558,15 @@ document.addEventListener("DOMContentLoaded", () => {
                     annotation.element.add_to(canvas);
                     // Some annotations have special behaviour when placed.
                     switch (state.mode.type) {
-                        // E.g. when we place a cell, we want to focus it immediately.
+                        // When we place a cell, we want to focus it immediately.
                         case Annotation.Cell:
                             delay(() => state.focus_input(annotation));
+                            break;
+                        // When we place an arrow, we want to use the same direction the previous arrow had, if possible.
+                        case Annotation.Arrow:
+                            if (state.annotation_flip[annotation.direction & 1]) {
+                                annotation.toggle_flip();
+                            }
                             break;
                     }
                 }

@@ -314,17 +314,22 @@ Annotation.Arrow = class extends Annotation {
                 event.stopPropagation();
                 // If we left-click on an arrow, we flip its direction.
                 if (event.button === 0) {
-                    this.flip = !this.flip;
-                    this.direction = (this.direction + 2) % 4;
-                    this.svg.set_style({
-                        transform: `rotate(${this.direction / 4}turn)`,
-                    });
+                    this.toggle_flip();
+                    state.annotation_flip[this.direction & 1] = this.flip;
                 }
             }
             // If we right-click on an arrow, we delete it.
             if (event.button === 2) {
                 tangle.remove_annotation(this);
             }
+        });
+    }
+
+    toggle_flip() {
+        this.flip = !this.flip;
+        this.direction = (this.direction + 2) % 4;
+        this.svg.set_style({
+            transform: `rotate(${this.direction / 4}turn)`,
         });
     }
 
