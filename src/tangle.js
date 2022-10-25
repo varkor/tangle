@@ -182,6 +182,31 @@ class Tangle {
         return { size, origin, rows };
     }
 
+    /// Returns the nonempty labels in a sorted order so that labels can be exported in a consistent
+    /// order.
+    nonempty_labels() {
+        const labels = Array.from(this.labels.values()).flat()
+            // Filter out the nonempty labels.
+            .filter((label) => label !== null && label.text.trim() !== "")
+            // Calculate the position of the label (relative to its tile and its direction).
+            .map((label) => {
+                const position = label.position.add(
+                    // We offset the position (which is the position of the tile to which the label
+                    // is attached) by the direction of the label. This way if we have a tile at
+                    // y = 0 with a label B at the bottom, and a tile at y = 1 with a label A at the
+                    // top, A will be sorted before B.
+                    Tangle.adjacent_offset(label.direction).mul(0.75)
+                );
+                return [position, label];
+            });
+        labels.sort(([a,], [b,]) => {
+            if (a.y < b.y) return -1;
+            if (b.y < a.y) return 1;
+            return a.x - b.x;
+        });
+        return labels.map(([, label]) => label);
+    }
+
     static adjacent_offset(direction) {
         return new Point(...[[1, 0], [0, 1], [-1, 0], [0, -1]][direction]);
     }
@@ -413,15 +438,10 @@ TangleImportExport.base64 = new class extends TangleImportExport {
             return [id, position.x, position.y, parameters];
         }));
         // Push the labels to the output.
-        output.push(Array.from(state.tangle.labels.values()).flatMap((labels) => {
-            return labels.flatMap((label, i) => {
-                if (label !== null && label.text.trim() !== "") {
-                    const position = label.position.sub(origin);
-                    return [[position.x, position.y, i, label.text]];
-                }
-                return [];
-            });
-        }));
+        output.push(Array.from(state.tangle.nonempty_labels().map((label) => {
+            const position = label.position.sub(origin);
+            return [position.x, position.y, label.direction, label.text];
+        })));
 
         // Don't record empty arrays at the end of the output.
         pop_while(output, (data) => data.length === 0);
@@ -580,18 +600,13 @@ TangleExport.tikz = new class extends TangleExport {
             return annotation.export_tikz(origin);
         }));
         // Append the TikZ for the labels.
-        for (const labels of state.tangle.labels.values()) {
-            for (let i = 0; i < 4; ++i) {
-                const label = labels[i];
-                if (label !== null && label.text.trim() !== "") {
-                    const anchor = ["west", "north", "east", "south"][i];
-                    const position = label.position.add(new Point(0.5, 0.5))
-                        .sub(origin)
-                        .add(Tangle.adjacent_offset(i).mul(0.5));
-                    output.push(
-                        `\\tgAxisLabel{(${position})}{${anchor}}{${label.text}}`);
-                }
-            }
+        for (const label of state.tangle.nonempty_labels()) {
+            const anchor = ["west", "north", "east", "south"][label.direction];
+            const position = label.position.add(new Point(0.5, 0.5))
+                .sub(origin)
+                .add(Tangle.adjacent_offset(label.direction).mul(0.5));
+            output.push(
+                `\\tgAxisLabel{(${position})}{${anchor}}{${label.text}}`);
         }
 
         return `% ${

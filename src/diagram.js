@@ -2,6 +2,7 @@
 class Label {
     constructor(position, direction, text) {
         this.position = position;
+        this.direction = direction;
 
         // We keep track of whether the label is selected or not, because we want different
         // behaviour when we click on a label for the first time and when we click on it a second
@@ -21,7 +22,7 @@ class Label {
             }
             if (event.button === 2) {
                 // We delete labels by right-clicking on them.
-                state.tangle.remove_label(this.position, direction);
+                state.tangle.remove_label(this.position, this.direction);
                 this.element.remove();
                 // Hide the `<input>` if the label was focused.
                 if (state.selected === this) {
