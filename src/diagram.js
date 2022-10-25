@@ -27,6 +27,7 @@ class Label {
                 if (state.selected === this) {
                     state.focus_input(null);
                 }
+                state.history.record();
             }
         }).listen("mouseup", (event) => {
             event.stopPropagation();
@@ -106,6 +107,7 @@ class Tile {
                     // the one we are replacing, as this should not make a difference to the
                     // diagram.
                     state.replace_tile(this.position, state.mode.get_template(state));
+                    state.history.record();
                 }
                 if (state.in_mode(UIMode.Colour)) {
                     event.stopPropagation();
@@ -116,12 +118,14 @@ class Tile {
                         this.template.quadrant_at_position(position),
                         state.mode.colour,
                     );
+                    state.history.record();
                 }
             }
             // If we right-click on a tile, we delete it.
             if (event.button === 2) {
                 event.stopPropagation();
                 state.tangle.remove_tile(this);
+                state.history.record();
             }
         });
     }
@@ -214,6 +218,7 @@ Annotation.Cell = class extends Annotation {
                 tangle.remove_annotation(this);
                 // Hide the `<input>` and size input.
                 state.focus_input(null);
+                state.history.record();
             }
         }).listen("mouseup", (event) => {
             if (state.in_mode(UIMode.Default, UIMode.Annotation)) {
@@ -316,11 +321,13 @@ Annotation.Arrow = class extends Annotation {
                 if (event.button === 0) {
                     this.toggle_flip();
                     state.annotation_flip[this.direction & 1] = this.flip;
+                    state.history.record();
                 }
             }
             // If we right-click on an arrow, we delete it.
             if (event.button === 2) {
                 tangle.remove_annotation(this);
+                state.history.record();
             }
         });
     }

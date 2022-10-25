@@ -186,6 +186,16 @@ class Tangle {
         return new Point(...[[1, 0], [0, 1], [-1, 0], [0, -1]][direction]);
     }
 
+    /// Clears the diagram.
+    clear() {
+        for (const tile of Array.from(this.tiles.values())) {
+            this.remove_tile(tile);
+        }
+        for (const annotation of Array.from(this.annotations.values())) {
+            this.remove_annotation(annotation);
+        }
+    }
+
     /// Add a new tile to the diagram, and return the new tile.
     add_tile(state, template, position) {
         const tile = new Tile(state, template, position);
@@ -427,7 +437,7 @@ TangleImportExport.base64 = new class extends TangleImportExport {
         }${colour_data.length > 0 ? `&${colour_data}` : ""}`;
     }
 
-    import(string, state) {
+    import(string, state, origin = Point.zero()) {
         let input;
         try {
             // We use this `decodeURIComponent`-`escape` trick to encode non-ASCII characters.
@@ -472,7 +482,7 @@ TangleImportExport.base64 = new class extends TangleImportExport {
                         ++x;
                         continue;
                 }
-                state.tangle.add_tile(state, template, new Point(x, y));
+                state.tangle.add_tile(state, template, new Point(x, y).add(origin));
                 
                 ++x;
             }
@@ -535,12 +545,12 @@ TangleImportExport.base64 = new class extends TangleImportExport {
                     console.error("unknown annotation type:", id);
                     continue;
             }
-            state.tangle.add_annotation(type, new Point(x, y), parameters);
+            state.tangle.add_annotation(type, new Point(x, y).add(origin), parameters);
         }
 
         // Add the labels.
         for (let [x, y, direction, label] of labels) {
-            const position = new Point(x, y);
+            const position = new Point(x, y).add(origin);
             state.tangle.set_label(position, direction, label);
             const tile = state.tangle.tiles.get(`${position}`);
             tile.set_label(direction, label);
