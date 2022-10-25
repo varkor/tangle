@@ -51,6 +51,14 @@ button {
     transform-origin: top left;
 }
 
+.shadow {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+    
+    box-shadow: inset hsl(0deg 0% 20% / 40%) 0 0 0 48px;
+}
+
 /* Label input */
 
 #input-area {
@@ -111,7 +119,7 @@ button {
 .annotation {
     position: absolute;
     transform: translate(-50%, -50%);
-    z-index: 1;
+    z-index: 2;
 }
 
 .annotation svg {
@@ -125,7 +133,7 @@ button {
     height: 32px;
     transform: translate(-50%, -50%);
     overflow: hidden;
-    z-index: 2;
+    z-index: 3;
 
     background: hsla(0, 0%, 100%, 0.9);
     border: black 2px solid;
@@ -155,7 +163,7 @@ button {
     width: 16px;
     height: 16px;
     transform: translate(-50%, -50%);
-    z-index: 1;
+    z-index: 2;
 
     background: hsl(0, 0%, 30%);
 
@@ -315,9 +323,15 @@ button {
     width: 100%;
     padding: 8px 4px;
 
-    text-align: center;
-
     background: hsl(0, 0%, 10%);
+
+    text-align: center;
+    color: var(--ui-white);
+}
+
+#tools .commands label {
+    display: block;
+    padding: 4px 8px 6px;
 }
 
 #tools .commands button {
@@ -353,7 +367,7 @@ button {
     transform: translate(-50%, 16px);
     white-space: nowrap;
     overflow: hidden;
-    z-index: 3;
+    z-index: 4;
 
     background: hsl(0, 0%, 40%);
     border-radius: 32px;
@@ -528,4 +542,36 @@ button {
 
 .close::before {
     content: "×";
+}
+
+/* Checkboxes */
+
+label input[type="checkbox"] {
+    margin-top: -1px;
+    margin-right: 6pt;
+    width: 12pt;
+    height: 12pt;
+    vertical-align: middle;
+
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ui-white);
+    border-radius: 2px;
+    outline: none;
+}
+
+label input[type="checkbox"]:hover {
+    background: hsl(0, 0%, 80%);
+}
+
+label input[type="checkbox"]:checked {
+    background: var(--ui-focus);
+
+    text-align: center;
+}
+
+label input[type="checkbox"]:checked::before {
+    content: "✓";
+
+    color: var(--ui-black);
 }

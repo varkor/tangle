@@ -102,6 +102,12 @@ class Tile {
         this.element.listen("mousedown", (event) => {
             if (event.button === 0) {
                 if (state.in_mode(UIMode.Tile)) {
+                    // It might seem like this overloading of the `mousedown` event here is
+                    // unnecessary, and that the one in `main.js` would suffice. However, it is more
+                    // convenient to have the method here due to rounding the pointer position: if
+                    // we click on a tile at its border, it will be registered as a click, but may
+                    // be positioned in the adjacent square if we go purely on pointer position,
+                    // which is undesirable.
                     event.stopPropagation();
                     // If we click on a tile in `UIMode.Tile`, we replace this tile with the new
                     // one. For simplicity, we don't check whether the new tile is any different to
@@ -127,6 +133,7 @@ class Tile {
                 event.stopPropagation();
                 state.tangle.remove_tile(this);
                 state.history.record();
+                state.update_shadow();
             }
         });
     }

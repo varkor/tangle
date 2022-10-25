@@ -76,6 +76,35 @@ UIMode.Colour = class extends UIMode.Tool {
     }
 };
 
+class Settings {
+    constructor() {
+        this.data = {
+            // Whether to use the `[trim x, trim y]` option.
+            "export.trim_diagram": true,
+        };
+        try {
+            // Try to update the default values with the saved settings.
+            this.data = Object.assign(
+                this.data,
+                JSON.parse(window.localStorage.getItem("settings"))
+            );
+        } catch (_) {
+            // The JSON stored in `settings` was malformed.
+        }
+    }
+
+    /// Returns a saved user setting, or the default value if a setting has not been modified yet.
+    get(setting) {
+        return this.data[setting];
+    }
+
+    /// Saves a user setting.
+    set(setting, value) {
+        this.data[setting] = value;
+        window.localStorage.setItem("settings", JSON.stringify(this.data));
+    }
+}
+
 /// A class used to record the state of the diagram: the diagram itself and also the position of its
 /// top-leftmost tile.
 class HistoryState {
@@ -166,13 +195,18 @@ const state = {
     selected: null,
     // A convenience variable for accessing the `<input>` element used for inputting labels.
     input: null,
-    // Whether the next [horizontal, vertical] annotation should be flipped. Used to preserve
-    // the direction of the previously added annotation where possible.
+    // A convenience variable for accessing the shadow element for displaying the trimmed content of
+    // the diagram.
+    shadow: null,
+    // Whether the next [horizontal, vertical] annotation should be flipped. Used to preserve the
+    // direction of the previously added annotation where possible.
     annotation_flip: [false, true],
     // The KaTeX instance used to render LaTeX.
     KaTeX: null,
     // The history system (undo/redo).
     history: new History(),
+    // The user settings.
+    settings: new Settings(),
 
     /// Transitions to a `UIMode`.
     switch_mode(mode) {
@@ -211,6 +245,8 @@ const state = {
         for (const annotation of this.tangle.annotations.values()) {
             annotation.element.add_to(canvas);
         }
+        // Update the shadow.
+        this.update_shadow();
     },
 
     /// Select a particular element (e.g. a cell) and open the `<input>` to edit it. If `on` is
@@ -305,6 +341,24 @@ const state = {
         tile.element.add_to(this.element.query_selector("#canvas"));
     },
 
+    // Update the shadow to display the trimmed area.
+    update_shadow() {
+        if (this.settings.get("export.trim_diagram")) {
+            const dimensions = this.tangle.dimensions();
+            this.shadow.set_style({
+                display: "initial",
+                left: `${(dimensions.origin.x - 0.5) * CONSTANTS.TILE_WIDTH}px`,
+                top: `${(dimensions.origin.y - 0.5) * CONSTANTS.TILE_HEIGHT}px`,
+                width: `${dimensions.size.x * CONSTANTS.TILE_WIDTH}px`,
+                height: `${dimensions.size.y * CONSTANTS.TILE_HEIGHT}px`,
+            });
+        } else {
+            this.shadow.set_style({
+                display: "none",
+            });
+        }
+    },
+
     // A helper method for displaying error banners.
     display_error(message) {
         // If there's already an error, it's not unlikely that subsequent errors will be triggered.
@@ -391,6 +445,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // `view.
     const canvas = new DOM.Div({ id: "canvas" }).add_to(container);
     view.canvas = canvas;
+    // The shadow that displays the trimmed content of the diagram.
+    state.shadow = new DOM.Div({ class: "shadow" }).add_to(canvas);
     // Handle panning via scrolling.
     window.addEventListener("wheel", (event) => {
         // We don't want to scroll the page itself while using the mouse wheel.
@@ -543,6 +599,26 @@ document.addEventListener("DOMContentLoaded", () => {
         }).add_to(commands);
     };
 
+    // Create the trim checkbox.
+    const checkbox = new DOM.Element("input", {
+        type: "checkbox",
+        "data-setting": "export.trim_diagram",
+    });
+    if (state.settings.get("export.trim_diagram")) {
+        checkbox.set_attributes({ checked: "" });
+    }
+    checkbox.listen("change", () => {
+        state.settings.set(
+            checkbox.get_attribute("data-setting"),
+            checkbox.element.checked,
+        );
+        state.update_shadow();
+    });
+    new DOM.Element("label")
+        .add(checkbox)
+        .add("Trim diagram")
+        .add_to(commands);
+
     // Create a new diagram.
     add_command("New", () => {
         state.tangle = new Tangle();
@@ -615,6 +691,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (state.in_mode(UIMode.Tile)) {
                 state.replace_tile(new Point(x, y), state.mode.get_template(state));
                 state.history.record();
+                state.update_shadow();
             }
             // Clicking in `UIMode.Annotation` places a new annotation if there is none already in
             // that location (clicking on an existing annotation) focuses it.
