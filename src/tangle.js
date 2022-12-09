@@ -600,7 +600,6 @@ TangleExport.tikz = new class extends TangleExport {
             return annotation.export_tikz(origin);
         }));
         // Append the TikZ for the labels.
-        const trim = new Set();
         for (const label of state.tangle.nonempty_labels()) {
             const anchor = ["west", "north", "east", "south"][label.direction];
             let position = label.position.add(new Point(0.5, 0.5))
@@ -608,7 +607,6 @@ TangleExport.tikz = new class extends TangleExport {
                 .add(Tangle.adjacent_offset(label.direction).mul(0.5));
             // If we are trimming the diagram, the outer labels need to be adjusted accordingly.
             if (state.settings.get("export.trim_x")) {
-                trim.add("trim x");
                 if (label.direction === 0 && position.x >= size.x - 0.75) {
                     position = position.sub(new Point(0.75, 0));
                 }
@@ -617,7 +615,6 @@ TangleExport.tikz = new class extends TangleExport {
                 }
             }
             if (state.settings.get("export.trim_y")) {
-                trim.add("trim y");
                 if (label.direction === 1 && position.y >= size.y - 0.75) {
                     position = position.sub(new Point(0, 0.75));
                 }
@@ -629,10 +626,17 @@ TangleExport.tikz = new class extends TangleExport {
                 `\\tgAxisLabel{(${position})}{${anchor}}{${label.text}}`);
         }
 
+        const trim = [];
+        if (state.settings.get("export.trim_x")) {
+            trim.push("trim x");
+        }
+        if (state.settings.get("export.trim_y")) {
+            trim.push("trim y");
+        }
         return `% ${
             TangleImportExport.base64.export(state)
         }\n\\begin{tangle}{(${size})}${
-            trim.size > 0 ? `[${Array.from(trim)}]` : ""
+            trim.length > 0 ? `[${trim}]` : ""
         }${output.length > 0 ? "\n\t" : ""}${   
             output.join("\n\t")
         }\n\\end{tangle}`;
