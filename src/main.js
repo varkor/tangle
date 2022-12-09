@@ -79,8 +79,9 @@ UIMode.Colour = class extends UIMode.Tool {
 class Settings {
     constructor() {
         this.data = {
-            // Whether to use the `[trim x, trim y]` option.
-            "export.trim_diagram": true,
+            // Whether to use the `[trim x, trim y]` options.
+            "export.trim_x": true,
+            "export.trim_y": true,
         };
         try {
             // Try to update the default values with the saved settings.
@@ -343,7 +344,7 @@ const state = {
 
     // Update the shadow to display the trimmed area.
     update_shadow() {
-        if (this.settings.get("export.trim_diagram")) {
+        if (this.settings.get("export.trim_x") || this.settings.get("export.trim_y")) {
             const dimensions = this.tangle.dimensions();
             this.shadow.set_style({
                 display: "initial",
@@ -352,6 +353,14 @@ const state = {
                 width: `${dimensions.size.x * CONSTANTS.TILE_WIDTH}px`,
                 height: `${dimensions.size.y * CONSTANTS.TILE_HEIGHT}px`,
             });
+            // We use different styles for trimming both x and y, and just trimming one direction.
+            this.shadow.class_list.remove("horizontal", "vertical");
+            if (this.settings.get("export.trim_x") && !this.settings.get("export.trim_y")) {
+                this.shadow.class_list.add("vertical");
+            }
+            if (this.settings.get("export.trim_y") && !this.settings.get("export.trim_x")) {
+                this.shadow.class_list.add("horizontal");
+            }
         } else {
             this.shadow.set_style({
                 display: "none",
@@ -599,25 +608,29 @@ document.addEventListener("DOMContentLoaded", () => {
         }).add_to(commands);
     };
 
-    // Create the trim checkbox.
-    const checkbox = new DOM.Element("input", {
-        type: "checkbox",
-        "data-setting": "export.trim_diagram",
-    });
-    if (state.settings.get("export.trim_diagram")) {
-        checkbox.set_attributes({ checked: "" });
+    // Create the trim_x and trim_y checkboxes.
+    const checkboxes = new DOM.Element("div").add_to(commands);
+    for (const [name, option] of [["Trim X", "trim_x"], ["Trim Y", "trim_y"]]) {
+        const setting = `export.${option}`;
+        const checkbox = new DOM.Element("input", {
+            type: "checkbox",
+            "data-setting": setting,
+        });
+        if (state.settings.get(setting)) {
+            checkbox.set_attributes({ checked: "" });
+        }
+        checkbox.listen("change", () => {
+            state.settings.set(
+                checkbox.get_attribute("data-setting"),
+                checkbox.element.checked,
+            );
+            state.update_shadow();
+        });
+        new DOM.Element("label")
+            .add(checkbox)
+            .add(name)
+            .add_to(checkboxes);
     }
-    checkbox.listen("change", () => {
-        state.settings.set(
-            checkbox.get_attribute("data-setting"),
-            checkbox.element.checked,
-        );
-        state.update_shadow();
-    });
-    new DOM.Element("label")
-        .add(checkbox)
-        .add("Trim diagram")
-        .add_to(commands);
 
     // Create a new diagram.
     add_command("New", () => {
@@ -671,6 +684,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (input.value !== initial_input) {
             state.history.record();
         }
+        initial_input = null;
     }).add_to(input_area);
 
     // Handle tile and annotation placement.

@@ -600,21 +600,26 @@ TangleExport.tikz = new class extends TangleExport {
             return annotation.export_tikz(origin);
         }));
         // Append the TikZ for the labels.
+        const trim = new Set();
         for (const label of state.tangle.nonempty_labels()) {
             const anchor = ["west", "north", "east", "south"][label.direction];
             let position = label.position.add(new Point(0.5, 0.5))
                 .sub(origin)
                 .add(Tangle.adjacent_offset(label.direction).mul(0.5));
             // If we are trimming the diagram, the outer labels need to be adjusted accordingly.
-            if (state.settings.get("export.trim_diagram")) {
+            if (state.settings.get("export.trim_x")) {
+                trim.add("trim x");
                 if (label.direction === 0 && position.x >= size.x - 0.75) {
                     position = position.sub(new Point(0.75, 0));
                 }
-                if (label.direction === 1 && position.y >= size.y - 0.75) {
-                    position = position.sub(new Point(0, 0.75));
-                }
                 if (label.direction === 2 && position.x <= 0.75) {
                     position = position.add(new Point(0.75, 0));
+                }
+            }
+            if (state.settings.get("export.trim_y")) {
+                trim.add("trim y");
+                if (label.direction === 1 && position.y >= size.y - 0.75) {
+                    position = position.sub(new Point(0, 0.75));
                 }
                 if (label.direction === 3 && position.y <= 0.75) {
                     position = position.add(new Point(0, 0.75));
@@ -627,7 +632,7 @@ TangleExport.tikz = new class extends TangleExport {
         return `% ${
             TangleImportExport.base64.export(state)
         }\n\\begin{tangle}{(${size})}${
-            state.settings.get("export.trim_diagram") ? "[trim x, trim y]" : ""
+            trim.size > 0 ? `[${Array.from(trim)}]` : ""
         }${output.length > 0 ? "\n\t" : ""}${   
             output.join("\n\t")
         }\n\\end{tangle}`;

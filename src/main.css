@@ -55,8 +55,39 @@ button {
     position: absolute;
     z-index: 1;
     pointer-events: none;
-    
+}
+
+/* When we are trimming x and y, we use `box-shadow`. When we are trimming in only one direction, we
+use pseudo-elements (see below). */
+.shadow:not(.shadow.horizontal):not(.shadow.vertical) {
     box-shadow: inset hsl(0deg 0% 20% / 40%) 0 0 0 48px;
+}
+
+.shadow.horizontal::before, .shadow.horizontal::after,
+.shadow.vertical::before, .shadow.vertical::after {
+    content: "";
+    position: absolute;
+    display: block;
+    width: 100%;
+    height: 100%;
+
+    background: hsl(0deg 0% 20% / 40%);
+}
+
+.shadow.horizontal::before, .shadow.horizontal::after {
+    height: 48px;
+}
+
+.shadow.vertical::before, .shadow.vertical::after {
+    width: 48px;
+}
+
+.shadow.horizontal::after {
+    bottom: 0;
+}
+
+.shadow.vertical::after {
+    right: 0;
 }
 
 /* Label input */
@@ -330,7 +361,7 @@ button {
 }
 
 #tools .commands label {
-    display: block;
+    display: inline-block;
     padding: 4px 8px 6px;
 }
 
