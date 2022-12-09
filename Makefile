@@ -87,12 +87,8 @@ gh-pages:
 	git add -A
 	git commit -m "Merge dev as subdirectory of release"
 
-	# Push to the remote `gh-pages` branch. We do need to force push at some point, to overwrite the
-	# existing branch content. However, this will not suffice to rebuild on GitHub Pages, so we then
-	# perform another (non-`--force`) push immediately afterwards.
+	# Push to the remote `gh-pages` branch, which will trigger a rebuild on GitHub Pages.
 	git push --force
-	git commit --allow-empty -m "Rebuild GitHub Pages"
-	git push
 
 	# Navigate back to the main working tree.
 	cd ../tangle
