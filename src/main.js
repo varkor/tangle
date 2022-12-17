@@ -80,8 +80,8 @@ class Settings {
     constructor() {
         this.data = {
             // Whether to use the `[trim x, trim y]` options.
-            "export.trim_x": true,
-            "export.trim_y": true,
+            "export.trim_x": false,
+            "export.trim_y": false,
         };
         try {
             // Try to update the default values with the saved settings.
