@@ -1,4 +1,4 @@
-.PHONY: all
+.PHONY: all gh-pages
 
 # Ensure `cd` works properly by forcing everything to be executed in a single shell.
 .ONESHELL:
@@ -6,7 +6,7 @@
 # Build KaTeX.
 all:
 	set -e
-	curl -L -O "https://github.com/KaTeX/KaTeX/releases/download/v0.15.3/katex.zip"
+	curl -L -O "https://github.com/KaTeX/KaTeX/releases/download/v0.16.4/katex.zip"
 	unzip katex.zip
 	rm katex.zip
 	mv katex src/KaTeX
