@@ -772,6 +772,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // The export pane that displays LaTeX output.
     const export_pane = new DOM.Div({ id: "export", class: "hidden" });
+    // Prevent propagation of scrolling when the cursor is over the export pane.
+    // This allows the user to scroll the pane when not all the text fits on it.
+    export_pane.listen("wheel", (event) => {
+        event.stopImmediatePropagation();
+    }, { passive: true });
     // The tip reminding users they need to include `tangle.sty` in their LaTeX document.
     new DOM.Element("span", { class: "tip" })
         .add("Remember to include ")
