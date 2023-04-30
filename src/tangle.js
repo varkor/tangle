@@ -270,9 +270,17 @@ class Tangle {
             state.region_graph.remove_vertex(vertex);
         }
         if (remove_dependents) {
-        // If there is an annotation centred on the tile, remove it.
-            const annotation = this.annotations.get(`${tile.position.add(new Point(0.5, 0.5))}`);
-            if (annotation) {
+            const annotations = new Set();
+            // If there is an annotation centred on the tile, remove it.
+            annotations.add(this.annotations.get(`${tile.position.add(new Point(0.5, 0.5))}`));
+            // If there are annotations on the tile's corners, remove them.
+            for (let i = 0; i < 4; ++i) {
+                annotations.add(this.annotations.get(`${
+                    tile.position.add(new Point(0.5, 0.5)).add(Tangle.adjacent_offset(i).mul(0.5))
+                }`));
+            }
+            annotations.delete(undefined);
+            for (const annotation of annotations) {
                 this.remove_annotation(annotation);
             }
         }
