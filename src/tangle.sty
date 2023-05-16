@@ -6,8 +6,10 @@
 % - varkor (https://github.com/varkor)
 
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{tangle}[2022/10/25 tangle]
+\ProvidesPackage{tangle}[2023/05/16 tangle]
 
+% `xparse` is required for `NewDocumentEnvironment`.
+\RequirePackage{xparse}
 % `xcolor` is required for `\definecolor`.
 \RequirePackage{xcolor}
 % `tikz` is necessary to draw string diagrams.
