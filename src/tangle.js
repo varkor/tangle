@@ -260,8 +260,8 @@ class Tangle {
         return tile;
     }
 
-    /// Remove a tile from the diagram. If `remove_dependents`, then any annotations on top of the
-    /// tile will also be removed.
+    /// Remove a tile from the diagram. If `remove_dependents`, then any annotations centred on top
+    /// of the tile will also be removed.
     remove_tile(tile, remove_dependents = true) {
         tile.element.remove();
         this.tiles.delete(`${tile.position}`);
@@ -269,20 +269,26 @@ class Tangle {
         for (const vertex of tile.template.all_vertices()) {
             state.region_graph.remove_vertex(vertex);
         }
+        // Remove any annotations on the tile; we only remove annotations centred on the tile if
+        // `remove_dependents` is true, but remove any edge annotations.
+        const annotations = new Set();
         if (remove_dependents) {
-            const annotations = new Set();
             // If there is an annotation centred on the tile, remove it.
             annotations.add(this.annotations.get(`${tile.position.add(new Point(0.5, 0.5))}`));
-            // If there are annotations on the tile's corners, remove them.
-            for (let i = 0; i < 4; ++i) {
-                annotations.add(this.annotations.get(`${
-                    tile.position.add(new Point(0.5, 0.5)).add(Tangle.adjacent_offset(i).mul(0.5))
-                }`));
+        }
+        // If there are annotations on the tile's corners, remove them.
+        for (let i = 0; i < 4; ++i) {
+            const annotation = this.annotations.get(`${
+                tile.position.add(new Point(0.5, 0.5)).add(Tangle.adjacent_offset(i).mul(0.5))
+            }`);
+            if (remove_dependents ||
+                (annotation !== undefined && annotation.constructor.alignment === ALIGNMENT.EDGE)) {
+                annotations.add(annotation);
             }
-            annotations.delete(undefined);
-            for (const annotation of annotations) {
-                this.remove_annotation(annotation);
-            }
+        }
+        annotations.delete(undefined);
+        for (const annotation of annotations) {
+            this.remove_annotation(annotation);
         }
         // Remove labels attached to the tile.
         if (this.labels.has(`${tile.position}`)) {
