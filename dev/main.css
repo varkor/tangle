@@ -1,0 +1,608 @@
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+:root {
+    --ui-black: hsla(0, 0%, 0%, 0.9); /* Almost black. */
+    --ui-white: hsl(0, 0%, 96%); /* Almost white. */
+    --ui-blue: hsl(200, 100%, 50%); /* Selection blue. */
+
+    --ui-focus: var(--ui-blue);
+
+    --stroke: black;
+}
+
+body {
+    position: absolute;
+    width: 100%; height: 100%;
+    margin: 0;
+    overflow: hidden;
+
+    background: hsl(0, 0%, 20%);
+
+    font-family: Arial, sans-serif;
+}
+
+svg {
+    stroke-width: 2pt;
+}
+
+button {
+    outline: none;
+}
+
+/* Diagram container */
+
+#container {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+}
+
+.mode-colour #container {
+    cursor: crosshair;
+}
+
+#canvas {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform-origin: top left;
+}
+
+.shadow {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* When we are trimming x and y, we use `box-shadow`. When we are trimming in only one direction, we
+use pseudo-elements (see below). */
+.shadow:not(.shadow.horizontal):not(.shadow.vertical) {
+    box-shadow: inset hsl(0deg 0% 20% / 40%) 0 0 0 48px;
+}
+
+.shadow.horizontal::before, .shadow.horizontal::after,
+.shadow.vertical::before, .shadow.vertical::after {
+    content: "";
+    position: absolute;
+    display: block;
+    width: 100%;
+    height: 100%;
+
+    background: hsl(0deg 0% 20% / 40%);
+}
+
+.shadow.horizontal::before, .shadow.horizontal::after {
+    height: 48px;
+}
+
+.shadow.vertical::before, .shadow.vertical::after {
+    width: 48px;
+}
+
+.shadow.horizontal::after {
+    bottom: 0;
+}
+
+.shadow.vertical::after {
+    right: 0;
+}
+
+/* Label input */
+
+#input-area {
+    position: fixed;
+    left: calc((100% - (64px * 4 + (2px * 2) * 3 + (2px + 4px) * 2)) / 2);
+    height: 32px;
+    bottom: 8px;
+    width: 40%;
+    min-width: 560px;
+    transform: translateX(-50%);
+
+    background: hsl(0, 0%, 30%);
+    border-radius: 8px;
+
+    color: white;
+
+    transition: transform 0.1s;
+}
+
+#input-area.hidden {
+    /* We use `translate` instead of `bottom` to avoid continually performing layout. */
+    transform: translate(-50%, calc(32px + 8px));
+}
+
+#input {
+    width: 100%; height: 32px;
+    padding: 4px 6px;
+
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    outline: none;
+
+    font-family: monospace;
+    font-size: 16pt;
+    color: inherit;
+    text-align: center;
+}
+
+#input:focus {
+    background: hsl(0, 0%, 95%);
+
+    color: black;
+}
+
+/* Tiles */
+
+.tile {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+
+    background: white;
+}
+
+/* Annotations */
+
+.annotation {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+}
+
+.annotation svg {
+    display: block;
+}
+
+.cell {
+    display: flex;
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    transform: translate(-50%, -50%);
+    overflow: hidden;
+    z-index: 3;
+
+    background: hsla(0, 0%, 100%, 0.9);
+    border: black 2px solid;
+    border-radius: 16px;
+
+    justify-content: center;
+    line-height: 32px;
+
+    cursor: default;
+}
+
+.cell .katex {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.cell.selected {
+    background: hsl(0, 0%, 90%, 0.9);
+}
+
+/* Anchors and axis labels */
+
+.anchor {
+    display: none;
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+
+    background: hsl(0, 0%, 30%);
+
+    cursor: default;
+}
+
+.anchor:hover {
+    background: hsl(0, 0%, 35%);
+}
+
+.anchor.top {
+    border-radius: 2px 2px 0 0;
+}
+.anchor.right {
+    border-radius: 0 2px 2px 0;
+}
+.anchor.bottom {
+    border-radius: 0 0 2px 2px;
+}
+.anchor.left {
+    border-radius: 2px 0 0 2px;
+}
+
+.mode-default .anchor {
+    display: block;
+}
+
+.anchor:not(:empty) {
+    display: block;
+}
+
+.anchor.hidden {
+    display: none;
+}
+
+.anchor .label {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    overflow: hidden;
+
+    background: inherit;
+    color: white;
+
+    text-align: center;
+    line-height: 48px;
+    font-size: 8pt;
+}
+
+.anchor .label.selected {
+    background: hsl(0, 0%, 95%);
+    color: black;
+}
+
+.anchor.top .label {
+    border-radius: 4px 4px 0 0;
+}
+.anchor.right .label {
+    border-radius: 0 4px 4px 0;
+}
+.anchor.bottom .label {
+    border-radius: 0 0 4px 4px;
+}
+.anchor.left .label {
+    border-radius: 4px 0 0 4px;
+}
+
+.anchor .label .katex {
+    display: inline-block;
+}
+
+/* Tool sidebar */
+
+#tools {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: calc(64px * 4 + (2px * 2) * 3 + (2px + 4px) * 2);
+    height: 100%;
+    padding: 4px;
+    z-index: 10;
+    user-select: none;
+
+    background: hsl(0, 0%, 15%);
+
+    --stroke: hsl(0, 0%, 40%);
+}
+
+.heading {
+    display: block;
+    margin: 4pt 0;
+
+    text-align: center;
+    font-weight: bold;
+    color: hsl(0, 0%, 90%);
+}
+
+.section {
+    margin-bottom: 12pt;
+}
+
+.template {
+    display: inline-block;
+    vertical-align: middle;
+    width: 64px;
+    height: 64px;
+    margin: 2px;
+
+    background: hsl(0, 0%, 20%);
+}
+
+.template:not(.selected):hover {
+    background: hsl(0, 0%, 25%);
+
+    --stroke: hsl(0, 0%, 45%);
+}
+
+.template.selected, #tools .option.selected {
+    background: var(--ui-white);
+}
+
+.colour {
+    display: inline-block;
+    vertical-align: middle;
+    width: 24px;
+    height: 24px;
+    margin: 4px;
+    border-radius: 100%;
+}
+
+.colour.selected {
+    box-shadow: hsl(0, 0%, 15%) 0 0 0 2px, var(--ui-focus) 0 0 0 4px;
+}
+
+#tools button {
+    margin: 0 4px;
+    padding: 2px 8px;
+
+    background: hsl(0, 0%, 20%);
+    border: none;
+    border-radius: 2px;
+
+    font-size: 12pt;
+    color: var(--stroke);
+}
+
+#tools button:not(.selected):hover {
+    background: hsl(0, 0%, 25%);
+
+    color: hsl(0, 0%, 45%);
+}
+
+#tools .commands {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    padding: 8px 4px;
+
+    background: hsl(0, 0%, 10%);
+
+    text-align: center;
+    color: var(--ui-white);
+}
+
+#tools .commands label {
+    display: inline-block;
+    padding: 4px 8px 6px;
+}
+
+#tools .commands button {
+    padding: 2px 8px;
+
+    background: transparent;
+    border: hsla(0, 0%, 30%) 1px solid;
+    border-radius: 2px;
+
+    color: var(--ui-white);
+}
+
+#tools .commands button:hover {
+    background: hsla(0, 0%, 100%, 0.1);
+
+    color: var(--ui-white);
+}
+
+.option {
+    margin: 4px;
+    padding: 2px 4px;
+
+    background: white;
+    border: none;
+}
+
+/* Size input */
+
+.size-input {
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    transform: translate(-50%, 16px);
+    white-space: nowrap;
+    overflow: hidden;
+    z-index: 4;
+
+    background: hsl(0, 0%, 40%);
+    border-radius: 32px;
+}
+
+.size-input.hidden {
+    display: none;
+}
+
+.size-input button {
+    display: block;
+    position: absolute;
+    width: 0;
+    height: 0;
+    padding: 0;
+
+    background: transparent;
+    border: none;
+
+    color: black;
+}
+
+.size-input button::before {
+    display: block;
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    line-height: 32px;
+}
+
+.size-input button:nth-child(1) {
+    left: 0;
+    top: 1px;
+    border-left: 31px solid hsl(0, 0%, 95%);
+    border-top: 31px solid transparent;
+    border-bottom: 31px solid transparent;
+}
+.size-input button:nth-child(1)::before {
+    content: "–";
+    left: -32px;
+    top: -16px;
+}
+.size-input button:nth-child(2) {
+    right: 0;
+    top: 1px;
+    border-right: 31px solid hsl(0, 0%, 95%);
+    border-top: 31px solid transparent;
+    border-bottom: 31px solid transparent;
+}
+.size-input button:nth-child(2)::before {
+    content: "+";
+    left: 0;
+    top: -16px;
+}
+.size-input button:nth-child(3) {
+    left: 1px;
+    bottom: 0;
+    border-bottom: 31px solid hsl(0, 0%, 95%);
+    border-left: 31px solid transparent;
+    border-right: 31px solid transparent;
+}
+.size-input button:nth-child(3)::before {
+    content: "–";
+    left: -16px;
+    top: 0;
+}
+.size-input button:nth-child(4) {
+    left: 1px;
+    top: 0;
+    border-top: 31px solid hsl(0, 0%, 95%);
+    border-left: 31px solid transparent;
+    border-right: 31px solid transparent;
+}
+.size-input button:nth-child(4)::before {
+    content: "+";
+    left: -16px;
+    top: -32px;
+}
+
+
+/* Export pane */
+
+#export {
+    display: block;
+    position: fixed;
+    width: 100%; height: 100%;
+    left: 0; top: 0;
+    z-index: 100;
+    padding: 20px 24px;
+    overflow-y: auto;
+
+    background: hsla(0, 0%, 10%, 0.8);
+
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+
+#export.hidden {
+    display: none;
+}
+
+#export a {
+    color: var(--ui-white);
+}
+
+#export .code {
+    font: 16px monospace;
+    color: white;
+
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    tab-size: 4;
+    -moz-tab-size: 4;
+}
+
+#export .tip {
+    display: inline-block;
+    width: 100%;
+    padding: 8pt;
+    margin-bottom: 8pt;
+
+    background: var(--ui-black);
+    border-radius: 2px;
+
+    color: var(--ui-white);
+}
+
+/* Error banner */
+
+.error-banner {
+    position: fixed;
+    width: 100%;
+    left: 0; top: 0;
+    z-index: 200;
+    padding: 8px 0;
+
+    background: hsl(0, 50%, 50%);
+    color: white;
+
+    text-align: center;
+
+    user-select: none;
+
+    transition: transform 0.2s;
+}
+
+.error-banner.hidden {
+    transform: translateY(-100%);
+}
+
+.close {
+    width: 28px; height: 28px;
+    margin-left: 20px;
+
+    background: transparent;
+    border: none;
+    border-radius: 100%;
+    outline: none;
+
+    text-align: center;
+    color: white;
+    font-size: 20px;
+}
+
+.close:hover {
+    background: hsla(0, 0%, 100%, 0.2);
+}
+
+.close:active {
+    background: hsla(0, 0%, 100%, 0.4);
+}
+
+.close::before {
+    content: "×";
+}
+
+/* Checkboxes */
+
+label input[type="checkbox"] {
+    margin-top: -1px;
+    margin-right: 6pt;
+    width: 12pt;
+    height: 12pt;
+    vertical-align: middle;
+
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ui-white);
+    border-radius: 2px;
+    outline: none;
+}
+
+label input[type="checkbox"]:hover {
+    background: hsl(0, 0%, 80%);
+}
+
+label input[type="checkbox"]:checked {
+    background: var(--ui-focus);
+
+    text-align: center;
+}
+
+label input[type="checkbox"]:checked::before {
+    content: "✓";
+
+    color: var(--ui-black);
+}
