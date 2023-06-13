@@ -6,10 +6,8 @@
 % - varkor (https://github.com/varkor)
 
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{tangle}[2023/05/16 tangle]
+\ProvidesPackage{tangle}[2022/10/25 tangle]
 
-% `xparse` is required for `NewDocumentEnvironment`.
-\RequirePackage{xparse}
 % `xcolor` is required for `\definecolor`.
 \RequirePackage{xcolor}
 % `tikz` is necessary to draw string diagrams.
@@ -108,7 +106,7 @@
 % \tgAxisLabel{position}{anchor}{text}
 \newcommand{\tgAxisLabel}[3]{%
     \tgExterior
-    \node[anchor=#2, scale=.8] at #1 {$#3$};
+    \node[anchor=#2, scale=.8] at #1 {\color{textcolour}$#3$};
 }
 
 % trim x [= value], trim y [= value]
@@ -123,7 +121,8 @@
 \NewDocumentEnvironment{tangle}{mo}{%
     \pgfkeys{/tangle, trim x = 0, trim y = 0}
     \IfValueT{#2}{\pgfkeys{/tangle, #2}}
-    \begin{tikzpicture}[baseline={([yshift=-.5ex]current bounding box.center)}, x=1cm, y=-1cm, line width=1]
+    \colorlet{textcolour}{.}
+    \begin{tikzpicture}[baseline={([yshift=-.5ex]current bounding box.center)}, x=1cm, y=-1cm, line width=1, color=black]
         \useasboundingbox \IfNoValueTF{#2}{(-.5,-.5)}{($(-.5,-.5) + (\trimX,\trimY)$)} rectangle \IfNoValueTF{#2}{($#1 + (.5,.5)$)}{($#1 + (.5,.5) - (\trimX,\trimY)$)};
         \begin{scope}
         \begin{pgfinterruptboundingbox}
