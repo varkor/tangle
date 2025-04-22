@@ -1,0 +1,141 @@
+% *** tangle ***
+% A package for drawing string diagrams exported from https://varkor.github.io/tangle.
+%
+% Version: 1.0.0
+% Authors:
+% - varkor (https://github.com/varkor)
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{tangle}[2022/10/25 tangle]
+
+% `xcolor` is required for `\definecolor`.
+\RequirePackage{xcolor}
+% `tikz` is necessary to draw string diagrams.
+\RequirePackage{tikz}
+\usetikzlibrary{calc}
+% `etoolbox` is required for `\ifdefequal`.
+\RequirePackage{etoolbox}
+
+% An internal command to check whether two colours are equal.
+\makeatletter
+\newcommand{\tgColourCheck}[3]{%
+    \extractcolorspec{#1}{\@spec@A}
+    \extractcolorspec{#2}{\@spec@B}
+    \ifdefequal{\@spec@A}{\@spec@B}{\renewcommand{#3}{0}}{\renewcommand{#3}{1}}
+}
+\makeatother
+
+% The `grid` option will draw a grid over every diagram, for debugging purposes.
+\newif\ifgrid
+\DeclareOption{grid}{\gridtrue}
+\ProcessOptions\relax
+
+% \tgColours{colour-list}
+\newcounter{tgColourIdx}
+\newcommand{\tgColours}[1]{%
+    \setcounter{tgColourIdx}{0}
+    \renewcommand*{\do}[1]{\definecolor{\tgColour\thetgColourIdx}{HTML}{##1}\stepcounter{tgColourIdx}}
+    \docsvlist{#1}
+}
+
+% \tgColour{index}
+\newcommand{\tgColour}[1]{colour-#1}
+
+% \tgB
+% The bleed value to avoid rendering artefacts.
+\pgfmathsetmacro{\tgB}{.01}
+
+% Tiles
+
+% \tgBlank{position}{colour}
+\newcommand{\tgBlank}[2]{%
+    \fill[#2] #1 + (-\tgB,-\tgB) rectangle +(1+\tgB*2,1+\tgB*2);
+}
+
+\newcommand{\tgBorderN}{}
+\newcommand{\tgBorderE}{}
+\newcommand{\tgBorderS}{}
+\newcommand{\tgBorderW}{}
+% \tgBorderA{position}{colour-NW}{colour-NE}{colour-SE}{colour-SW}
+\newcommand{\tgBorderA}[5]{%
+    \fill[#2] #1 + (-\tgB,-\tgB) rectangle +(.5+\tgB*2,.5+\tgB*2);
+    \fill[#3] ($#1 + (.5-\tgB,-\tgB)$) rectangle +(.5+\tgB*2,.5+\tgB*2);
+    \fill[#4] ($#1 + (.5-\tgB,.5-\tgB)$) rectangle +(.5+\tgB*2,.5+\tgB*2);
+    \fill[#5] ($#1 + (-\tgB,.5-\tgB)$) rectangle +(.5+\tgB*2,.5+\tgB*2);
+    \tgColourCheck{#2}{#3}{\tgBorderN}
+    \tgColourCheck{#3}{#4}{\tgBorderE}
+    \tgColourCheck{#4}{#5}{\tgBorderS}
+    \tgColourCheck{#5}{#2}{\tgBorderW}
+    \tgBorder{#1}{\tgBorderN}{\tgBorderE}{\tgBorderS}{\tgBorderW}
+}
+
+% \tgBorder{position}{border-N}{border-E}{border-S}{border-W}
+\newcommand{\tgBorder}[5]{%
+    \ifnum1=0#2\relax \draw ($#1 + (.5,.5)$) -- +(0,-.5-\tgB); \fi
+    \ifnum1=0#3\relax \draw ($#1 + (.5,.5)$) -- +(.5+\tgB,0); \fi
+    \ifnum1=0#4\relax \draw ($#1 + (.5,.5)$) -- +(0,.5+\tgB); \fi
+    \ifnum1=0#5\relax \draw ($#1 + (.5,.5)$) -- +(-.5-\tgB,0); \fi
+}
+
+% \tgBorderC{position}{angle}{colour-outer}{colour-inner}
+\newcommand{\tgBorderC}[4]{%
+    % Reference is SW quadrant of a circle.
+    \begin{scope}[shift={($#1 + (.5,.5)$)}, rotate=#2 * 90]
+        % Fill outer region, from NW going clockwise.
+        \fill[#3] (-.5-\tgB,-.5-\tgB) -- ++(.5+\tgB,0) -- ++(0,\tgB) arc (180:90:.5) -- (.5+\tgB,0) -- ++(0,.5+\tgB) -- ++(-1-\tgB*2,0) -- cycle;
+        % Fill inner region, from N going clockwise.
+        % We add straight edges at the edges of the arc to account for the bleed.
+        \fill[#4] (0,-.5-\tgB) -- ++(0,\tgB) arc (180:90:.5) -- (.5+\tgB,0) -- ++(0,-.5-\tgB) -- cycle;
+        \draw (0,-.5-\tgB) -- ++(0,\tgB) arc (180:90:.5) -- (.5+\tgB,0);
+    \end{scope}
+}
+
+% \tgCell[(width,height)]{position}{text}
+\newcommand{\tgCell}[3][(0,0)]{%
+    \filldraw[fill=white, rounded corners=.25cm] ($#2 + (.5,.5) - (.25,.25) - .5*#1$) rectangle ($#2 + (.5,.5) + (.25,.25) + .5*#1$);
+    \node at ($#2 + (.5,.5)$) {$#3$};
+}
+
+% \tgArrow{position}{angle}
+\newcommand{\tgArrow}[2]{%
+    \begin{scope}[shift={($#1 + (.5,.5)$)}, rotate=#2 * 90]
+        \draw ($({sqrt(2 * .08 ^ 2) / 2}, 0) - (.08,.08)$) -- ++(.08,.08) -- ++(-.08,.08);
+    \end{scope}
+}
+
+% \tgAxisLabel{position}{anchor}{text}
+\newcommand{\tgAxisLabel}[3]{%
+    \tgExterior
+    \node[anchor=#2, scale=.8] at #1 {\color{textcolour}$#3$};
+}
+
+% trim x [= value], trim y [= value]
+\pgfkeys{
+    /tangle/.is family, /tangle,
+    trim x/.default = .75,
+    trim x/.store in = \trimX,
+    trim y/.default = .75,
+    trim y/.store in = \trimY,
+}
+
+\NewDocumentEnvironment{tangle}{mo}{%
+    \pgfkeys{/tangle, trim x = 0, trim y = 0}
+    \IfValueT{#2}{\pgfkeys{/tangle, #2}}
+    \colorlet{textcolour}{.}
+    \begin{tikzpicture}[baseline={([yshift=-.5ex]current bounding box.center)}, x=1cm, y=-1cm, line width=1, color=black]
+        \useasboundingbox \IfNoValueTF{#2}{(-.5,-.5)}{($(-.5,-.5) + (\trimX,\trimY)$)} rectangle \IfNoValueTF{#2}{($#1 + (.5,.5)$)}{($#1 + (.5,.5) - (\trimX,\trimY)$)};
+        \begin{scope}
+        \begin{pgfinterruptboundingbox}
+            \clip (\trimX,\trimY) rectangle ($#1 - (\trimX,\trimY)$);
+        \end{pgfinterruptboundingbox}
+        \gdef\tgExterior{\end{scope}\gdef\tgExterior{}\begin{scope}}
+}{%
+        \ifgrid
+            \draw[xstep=.5,ystep=-.5,lightgray,very thin] (0,0) grid #1;
+            \draw[xstep=1,ystep=-1,gray,thin] (0,0) grid #1;
+        \fi
+    \end{scope}
+    \end{tikzpicture}
+}
+
+\endinput
