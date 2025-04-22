@@ -642,7 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
         history.pushState({}, "", TangleImportExport.base64.export(state));
     });
     // Export the current diagram as LaTeX.
-    add_command("Export", () => {
+    const show_export_pane = () => {
         const export_pane = body.query_selector("#export");
         export_pane.query_selector(".code").clear().add(TangleExport.tikz.export(state));
         export_pane.class_list.remove("hidden");
@@ -659,7 +659,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Safari seems to occasionally fail to select the text immediately, so we
         // also select it after a delay to ensure the text is selected.
         delay(select_output);
-    });
+    };
+    add_command("Export", show_export_pane);
     // Centre the view on the diagram.
     add_command("Centre", () => {
         view.centre(state.tangle);
@@ -821,6 +822,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.key === "s" && (event.metaKey || event.ctrlKey)) {
             event.preventDefault();
             history.pushState({}, "", TangleImportExport.base64.export(state));
+        }
+        // Exporting with ⌘E or Control + E.
+        if (event.key === "e" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            show_export_pane();
         }
         // Undoing (and redoing) with ⌘Z or Control + Z.
         if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
