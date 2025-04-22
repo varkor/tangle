@@ -2,44 +2,43 @@
 class Label {
     constructor(position, direction, text) {
         this.position = position;
+        this.direction = direction;
 
         // We keep track of whether the label is selected or not, because we want different
         // behaviour when we click on a label for the first time and when we click on it a second
         // time.
         let was_selected;
         this.element = new DOM.Div({ class: "label" }).listen("mousedown", (event) => {
-            // We always want clicking on a label to block the event from anything else underneath
-            // the label, but only want the click to have an effect in the default mode.
             event.stopPropagation();
-            if (state.in_mode(UIMode.Default)) {
-                was_selected = false;
-                if (event.button === 0) {
-                    if (state.selected === this && document.activeElement !== state.input.element) {
-                        was_selected = true;
-                    } else {
-                        // This activates the `<input>` but doesn't actually focus it due to event
-                        // order. This is sufficient for our purposes, however.
-                        state.focus_input(this);
-                    }
+            was_selected = false;
+            if (event.button === 0) {
+                if (state.selected === this && document.activeElement !== state.input.element) {
+                    was_selected = true;
                 } else {
-                    // We delete labels by right-clicking on them.
-                    state.tangle.remove_label(this.position, direction);
-                    this.element.remove();
-                    // Hide the `<input>`.
+                    // This activates the `<input>` but doesn't actually focus it due to event
+                    // order. This is sufficient for our purposes, however.
+                    state.focus_input(this);
+                }
+            }
+            if (event.button === 2) {
+                // We delete labels by right-clicking on them.
+                state.tangle.remove_label(this.position, this.direction);
+                this.element.remove();
+                // Hide the `<input>` if the label was focused.
+                if (state.selected === this) {
                     state.focus_input(null);
                 }
+                state.history.record();
             }
         }).listen("mouseup", (event) => {
             event.stopPropagation();
-            if (state.in_mode(UIMode.Default)) {
-                if (event.button === 0) {
-                    // When we create a `Label` from an `Anchor`, we want to focus the input
-                    // immediately, hence the second condition.
-                    if (was_selected || this.text.trim() === "") {
-                        // Note the comment above about `focus_input`: the previous invocation did
-                        // not actually focus the input, so we call it here on `mouseup` instead.
-                        state.focus_input(this);
-                    }
+            if (event.button === 0) {
+                // When we create a `Label` from an `Anchor`, we want to focus the input
+                // immediately, hence the second condition.
+                if (was_selected || this.text.trim() === "") {
+                    // Note the comment above about `focus_input`: the previous invocation did
+                    // not actually focus the input, so we call it here on `mouseup` instead.
+                    state.focus_input(this);
                 }
             }
         });
@@ -103,12 +102,19 @@ class Tile {
         this.element.listen("mousedown", (event) => {
             if (event.button === 0) {
                 if (state.in_mode(UIMode.Tile)) {
+                    // It might seem like this overloading of the `mousedown` event here is
+                    // unnecessary, and that the one in `main.js` would suffice. However, it is more
+                    // convenient to have the method here due to rounding the pointer position: if
+                    // we click on a tile at its border, it will be registered as a click, but may
+                    // be positioned in the adjacent square if we go purely on pointer position,
+                    // which is undesirable.
                     event.stopPropagation();
                     // If we click on a tile in `UIMode.Tile`, we replace this tile with the new
                     // one. For simplicity, we don't check whether the new tile is any different to
                     // the one we are replacing, as this should not make a difference to the
                     // diagram.
                     state.replace_tile(this.position, state.mode.get_template(state));
+                    state.history.record();
                 }
                 if (state.in_mode(UIMode.Colour)) {
                     event.stopPropagation();
@@ -119,12 +125,15 @@ class Tile {
                         this.template.quadrant_at_position(position),
                         state.mode.colour,
                     );
+                    state.history.record();
                 }
             }
             // If we right-click on a tile, we delete it.
             if (event.button === 2) {
                 event.stopPropagation();
                 state.tangle.remove_tile(this);
+                state.history.record();
+                state.update_shadow();
             }
         });
     }
@@ -138,7 +147,7 @@ class Tile {
         region.colour = colour;
         // ...and effect the change.
         for (const vertex of region.vertices) {
-            vertex.element.set_style({ fill: state.colours[colour] });
+            vertex.element.set_style({ fill: colour !== null ? state.colours[colour] : "white" });
         }
     }
 
@@ -184,7 +193,7 @@ class Annotation {
 /// A cell typically represents a 2-cell, which is depicted as a circle (more generally, a rounded
 /// rectangle) with a LaTeX label.
 Annotation.Cell = class extends Annotation {
-    constructor(tangle, position, { text = "", width = 0 }) {
+    constructor(tangle, position, { text = "", width = 0, height = 0 }) {
         super(tangle, position);
 
         const [left, top] = [
@@ -210,23 +219,14 @@ Annotation.Cell = class extends Annotation {
                     } else {
                         state.focus_input(this);
                     }
-                    // When a cell is clicked on, we want to display the size input. At present,
-                    // there is a single global size input, so we need to move that to the correct
-                    // position and reveal it.
-                    const size_input = new DOM.Element(document.body).query_selector(".size-input");
-                    size_input.class_list.remove("hidden");
-                    size_input.set_style({
-                        left: `${left}px`,
-                        top: `${top}px`,
-                    });
-                    // We should not be able to change the width of a cell to a negative integer.
-                    size_input.query_selector("button").element.disabled =
-                        state.selected.width === 0;
                 }
-                // Rick-clicking on a cell removes it.
-                if (event.button === 2) {
-                    tangle.remove_annotation(this);
-                }
+            }
+            // Rick-clicking on a cell removes it.
+            if (event.button === 2) {
+                tangle.remove_annotation(this);
+                // Hide the `<input>` and size input.
+                state.focus_input(null);
+                state.history.record();
             }
         }).listen("mouseup", (event) => {
             if (state.in_mode(UIMode.Default, UIMode.Annotation)) {
@@ -238,7 +238,7 @@ Annotation.Cell = class extends Annotation {
             }
         });
         this.set_text(text);
-        this.set_width(width);
+        this.set_dimensions(width, height);
     }
 
     /// Update the text of the label and render it with KaTeX.
@@ -259,15 +259,20 @@ Annotation.Cell = class extends Annotation {
     }
 
     /// Update the width of the cell.
-    set_width(width) {
+    set_dimensions(width, height) {
         this.width = width;
+        this.height = height;
         this.element.set_style({ width: `${
-            this.width * CONSTANTS.TILE_WIDTH * 2 + CONSTANTS.CELL_SIZE
+            this.width * CONSTANTS.TILE_WIDTH + CONSTANTS.CELL_SIZE
+        }px`, height: `${
+            this.height * CONSTANTS.TILE_HEIGHT + CONSTANTS.CELL_SIZE
         }px` });
     }
 
     export_tikz(origin) {
-        return `\\tgCell${this.width > 0 ? `[${this.width}]` : ""}{(${
+        return `\\tgCell${
+            this.width > 0 || this.height > 0 ? `[(${this.width},${this.height})]` : ""
+        }{(${
             this.position.x - 0.5 - origin.x
         },${
             this.position.y - 0.5 - origin.y
@@ -318,21 +323,28 @@ Annotation.Arrow = class extends Annotation {
             left: `${left}px`,
             top: `${top}px`,
         }).add(this.svg).listen("mousedown", (event) => {
-            if (state.in_mode(UIMode.Annotation)) {
+            if (state.in_mode(UIMode.Default, UIMode.Annotation)) {
                 event.stopPropagation();
                 // If we left-click on an arrow, we flip its direction.
                 if (event.button === 0) {
-                    this.flip = !this.flip;
-                    this.direction = (this.direction + 2) % 4;
-                    this.svg.set_style({
-                        transform: `rotate(${this.direction / 4}turn)`,
-                    });
-                }
-                // If we right-click on an arrow, we delete it.
-                if (event.button === 2) {
-                    tangle.remove_annotation(this);
+                    this.toggle_flip();
+                    state.annotation_flip[this.direction & 1] = this.flip;
+                    state.history.record();
                 }
             }
+            // If we right-click on an arrow, we delete it.
+            if (event.button === 2) {
+                tangle.remove_annotation(this);
+                state.history.record();
+            }
+        });
+    }
+
+    toggle_flip() {
+        this.flip = !this.flip;
+        this.direction = (this.direction + 2) % 4;
+        this.svg.set_style({
+            transform: `rotate(${this.direction / 4}turn)`,
         });
     }
 

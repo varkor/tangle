@@ -104,8 +104,8 @@ class Point {
 }
 
 /// Returns a `Map` containing the current URL's query parameters.
-function query_parameters() {
-    const query_string = window.location.href.match(/\?(.*)$/);
+function query_parameters(url = window.location.href) {
+    const query_string = url.match(/\?(.*)$/);
     if (query_string !== null) {
         // If there is `q` parameter in the query string, try to decode it as a diagram.
         const query_segs = query_string[1].split("&");
