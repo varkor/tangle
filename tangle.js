@@ -17,6 +17,17 @@ class Region {
         this.colour = null;
     }
 
+    // Combines `this` region with the `other` region. In practice, this means all the vertices from
+    // `other` are moved to `this` region. The colour of `this` is usually preserved, though if
+    // `this` is uncoloured and the `other` is coloured, we also inherit the colour.
+    combine(other) {
+        this.vertices = new Set([...this.vertices, ...other.vertices]);
+        for (const vertex of other.vertices) {
+            vertex.region = this;
+        }
+        this.colour = this.colour !== null ? this.colour : other.colour;
+    }
+
     add_vertex(element) {
         const vertex = new Vertex(this, element);
         this.vertices.add(vertex);
@@ -54,13 +65,10 @@ class RegionGraph {
         v1.connections.add(v2);
         v2.connections.add(v1);
         if (v1.region === v2.region) {
-            return new Set();
+            return;
         }
-        this.regions.delete(v2.region)
-        v1.region.vertices = new Set([...v1.region.vertices, ...v2.region.vertices]);
-        for (const vertex of v2.region.vertices) {
-            vertex.region = v1.region;
-        }
+        this.regions.delete(v2.region);
+        v1.region.combine(v2.region);
     }
 
     /// Disconnect two vertices. If they are now no longer connected by a path, we create a new
@@ -174,8 +182,43 @@ class Tangle {
         return { size, origin, rows };
     }
 
+    /// Returns the nonempty labels in a sorted order so that labels can be exported in a consistent
+    /// order.
+    nonempty_labels() {
+        const labels = Array.from(this.labels.values()).flat()
+            // Filter out the nonempty labels.
+            .filter((label) => label !== null && label.text.trim() !== "")
+            // Calculate the position of the label (relative to its tile and its direction).
+            .map((label) => {
+                const position = label.position.add(
+                    // We offset the position (which is the position of the tile to which the label
+                    // is attached) by the direction of the label. This way if we have a tile at
+                    // y = 0 with a label B at the bottom, and a tile at y = 1 with a label A at the
+                    // top, A will be sorted before B.
+                    Tangle.adjacent_offset(label.direction).mul(0.75)
+                );
+                return [position, label];
+            });
+        labels.sort(([a,], [b,]) => {
+            if (a.y < b.y) return -1;
+            if (b.y < a.y) return 1;
+            return a.x - b.x;
+        });
+        return labels.map(([, label]) => label);
+    }
+
     static adjacent_offset(direction) {
         return new Point(...[[1, 0], [0, 1], [-1, 0], [0, -1]][direction]);
+    }
+
+    /// Clears the diagram.
+    clear() {
+        for (const tile of Array.from(this.tiles.values())) {
+            this.remove_tile(tile);
+        }
+        for (const annotation of Array.from(this.annotations.values())) {
+            this.remove_annotation(annotation);
+        }
     }
 
     /// Add a new tile to the diagram, and return the new tile.
@@ -203,7 +246,13 @@ class Tangle {
                 if (this.labels.has(`${adjacent_position}`)) {
                     const label = this.labels.get(`${adjacent_position}`)[i_op];
                     if (label !== null) {
+                        const text = label.text;
                         this.remove_label(adjacent_position, i_op);
+                        // We try to add the label back, on the new tile.
+                        // Check whether there's space for the label.
+                        if (!this.tiles.has(`${position.add(Tangle.adjacent_offset(i_op))}`)) {
+                            tile.set_label(i_op, text);
+                        }
                     }
                 }
             }
@@ -211,8 +260,8 @@ class Tangle {
         return tile;
     }
 
-    /// Remove a tile from the diagram. If `remove_dependents`, then any annotations on top of the
-    /// tile will also be removed.
+    /// Remove a tile from the diagram. If `remove_dependents`, then any annotations centred on top
+    /// of the tile will also be removed.
     remove_tile(tile, remove_dependents = true) {
         tile.element.remove();
         this.tiles.delete(`${tile.position}`);
@@ -220,14 +269,36 @@ class Tangle {
         for (const vertex of tile.template.all_vertices()) {
             state.region_graph.remove_vertex(vertex);
         }
+        // Remove any annotations on the tile; we only remove annotations centred on the tile if
+        // `remove_dependents` is true, but remove any edge annotations.
+        const annotations = new Set();
         if (remove_dependents) {
-        // If there is an annotation centred on the tile, remove it.
-            const annotation = this.annotations.get(`${tile.position.add(new Point(0.5, 0.5))}`);
-            if (annotation) {
-                this.remove_annotation(annotation);
+            // If there is an annotation centred on the tile, remove it.
+            annotations.add(this.annotations.get(`${tile.position.add(new Point(0.5, 0.5))}`));
+        }
+        // If there are annotations on the tile's corners, remove them.
+        for (let i = 0; i < 4; ++i) {
+            const annotation = this.annotations.get(`${
+                tile.position.add(new Point(0.5, 0.5)).add(Tangle.adjacent_offset(i).mul(0.5))
+            }`);
+            if (remove_dependents ||
+                (annotation !== undefined && annotation.constructor.alignment === ALIGNMENT.EDGE)) {
+                annotations.add(annotation);
             }
         }
+        annotations.delete(undefined);
+        for (const annotation of annotations) {
+            this.remove_annotation(annotation);
+        }
         // Remove labels attached to the tile.
+        if (this.labels.has(`${tile.position}`)) {
+            for (const label of this.labels.get(`${tile.position}`).values()) {
+                // Hide the `<input>` if the label was focused.
+                if (state.selected === label) {
+                    state.focus_input(null);
+                }
+            }
+        }
         this.labels.delete(`${tile.position}`);
         // Update anchors for tiles adjacent to the current one.
         for (let i = 0; i < 4; ++i) {
@@ -362,8 +433,14 @@ TangleImportExport.base64 = new class extends TangleImportExport {
                 case Annotation.Cell:
                     id = 0;
                     parameters = [annotation.text];
-                    if (annotation.width > 0) {
+                    // If `height` is nonzero, we must always push the `width` so that the `height`
+                    // is stored at the correct index, but if the `height` is zero, there is no need
+                    // to store it.
+                    if (annotation.width > 0 || annotation.height > 0) {
                         parameters.push(annotation.width);
+                        if (annotation.height > 0) {
+                            parameters.push(annotation.height);
+                        }
                     }
                     break;
                 case Annotation.Arrow:
@@ -375,15 +452,10 @@ TangleImportExport.base64 = new class extends TangleImportExport {
             return [id, position.x, position.y, parameters];
         }));
         // Push the labels to the output.
-        output.push(Array.from(state.tangle.labels.values()).flatMap((labels) => {
-            return labels.flatMap((label, i) => {
-                if (label !== null && label.text.trim() !== "") {
-                    const position = label.position.sub(origin);
-                    return [[position.x, position.y, i, label.text]];
-                }
-                return [];
-            });
-        }));
+        output.push(Array.from(state.tangle.nonempty_labels().map((label) => {
+            const position = label.position.sub(origin);
+            return [position.x, position.y, label.direction, label.text];
+        })));
 
         // Don't record empty arrays at the end of the output.
         pop_while(output, (data) => data.length === 0);
@@ -399,7 +471,7 @@ TangleImportExport.base64 = new class extends TangleImportExport {
         }${colour_data.length > 0 ? `&${colour_data}` : ""}`;
     }
 
-    import(string, state) {
+    import(string, state, origin = Point.zero()) {
         let input;
         try {
             // We use this `decodeURIComponent`-`escape` trick to encode non-ASCII characters.
@@ -444,7 +516,7 @@ TangleImportExport.base64 = new class extends TangleImportExport {
                         ++x;
                         continue;
                 }
-                state.tangle.add_tile(state, template, new Point(x, y));
+                state.tangle.add_tile(state, template, new Point(x, y).add(origin));
                 
                 ++x;
             }
@@ -475,7 +547,9 @@ TangleImportExport.base64 = new class extends TangleImportExport {
         for (const region of region_order) {
             const colour = i < region_colours.length ? region_colours[i] - 1 : -1;
             while (colour >= state.colours.length) {
-                state.colours.push(default_colours.length > 0 ? default_colours.shift() : "#FFFFFF");
+                state.colours.push(
+                    default_colours.length > 0 ? default_colours.shift() : "#FFFFFF"
+                );
             }
             if (colour !== -1) {
                 region.colour = colour;
@@ -493,8 +567,8 @@ TangleImportExport.base64 = new class extends TangleImportExport {
             switch (id) {
                 case i++:
                     type = Annotation.Cell;
-                    const [text, width = 0] = linear_parameters;
-                    parameters = { text, width };
+                    const [text, width = 0, height = 0] = linear_parameters;
+                    parameters = { text, width, height };
                     break;
                 case i++:
                     type = Annotation.Arrow;
@@ -505,12 +579,12 @@ TangleImportExport.base64 = new class extends TangleImportExport {
                     console.error("unknown annotation type:", id);
                     continue;
             }
-            state.tangle.add_annotation(type, new Point(x, y), parameters);
+            state.tangle.add_annotation(type, new Point(x, y).add(origin), parameters);
         }
 
         // Add the labels.
         for (let [x, y, direction, label] of labels) {
-            const position = new Point(x, y);
+            const position = new Point(x, y).add(origin);
             state.tangle.set_label(position, direction, label);
             const tile = state.tangle.tiles.get(`${position}`);
             tile.set_label(direction, label);
@@ -540,23 +614,44 @@ TangleExport.tikz = new class extends TangleExport {
             return annotation.export_tikz(origin);
         }));
         // Append the TikZ for the labels.
-        for (const labels of state.tangle.labels.values()) {
-            for (let i = 0; i < 4; ++i) {
-                const label = labels[i];
-                if (label !== null && label.text.trim() !== "") {
-                    const anchor = ["west", "north", "east", "south"][i];
-                    const position = label.position.add(new Point(0.5, 0.5))
-                        .sub(origin)
-                        .add(Tangle.adjacent_offset(i).mul(0.5));
-                    output.push(
-                        `\\tgAxisLabel{(${position})}{${anchor}}{${label.text}}`);
+        for (const label of state.tangle.nonempty_labels()) {
+            const anchor = ["west", "north", "east", "south"][label.direction];
+            let position = label.position.add(new Point(0.5, 0.5))
+                .sub(origin)
+                .add(Tangle.adjacent_offset(label.direction).mul(0.5));
+            // If we are trimming the diagram, the outer labels need to be adjusted accordingly.
+            if (state.settings.get("export.trim_x")) {
+                if (label.direction === 0 && position.x >= size.x - 0.75) {
+                    position = position.sub(new Point(0.75, 0));
+                }
+                if (label.direction === 2 && position.x <= 0.75) {
+                    position = position.add(new Point(0.75, 0));
                 }
             }
+            if (state.settings.get("export.trim_y")) {
+                if (label.direction === 1 && position.y >= size.y - 0.75) {
+                    position = position.sub(new Point(0, 0.75));
+                }
+                if (label.direction === 3 && position.y <= 0.75) {
+                    position = position.add(new Point(0, 0.75));
+                }
+            }
+            output.push(
+                `\\tgAxisLabel{(${position})}{${anchor}}{${label.text}}`);
         }
 
+        const trim = [];
+        if (state.settings.get("export.trim_x")) {
+            trim.push("trim x");
+        }
+        if (state.settings.get("export.trim_y")) {
+            trim.push("trim y");
+        }
         return `% ${
             TangleImportExport.base64.export(state)
-        }\n\\begin{tangle}{(${size})}${output.length > 0 ? "\n\t" : ""}${
+        }\n\\begin{tangle}{(${size})}${
+            trim.length > 0 ? `[${trim}]` : ""
+        }${output.length > 0 ? "\n\t" : ""}${   
             output.join("\n\t")
         }\n\\end{tangle}`;
     }

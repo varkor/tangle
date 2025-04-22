@@ -76,6 +76,103 @@ UIMode.Colour = class extends UIMode.Tool {
     }
 };
 
+class Settings {
+    constructor() {
+        this.data = {
+            // Whether to use the `[trim x, trim y]` options.
+            "export.trim_x": false,
+            "export.trim_y": false,
+        };
+        try {
+            // Try to update the default values with the saved settings.
+            this.data = Object.assign(
+                this.data,
+                JSON.parse(window.localStorage.getItem("settings"))
+            );
+        } catch (_) {
+            // The JSON stored in `settings` was malformed.
+        }
+    }
+
+    /// Returns a saved user setting, or the default value if a setting has not been modified yet.
+    get(setting) {
+        return this.data[setting];
+    }
+
+    /// Saves a user setting.
+    set(setting, value) {
+        this.data[setting] = value;
+        window.localStorage.setItem("settings", JSON.stringify(this.data));
+    }
+}
+
+/// A class used to record the state of the diagram: the diagram itself and also the position of its
+/// top-leftmost tile.
+class HistoryState {
+    constructor(diagram, origin) {
+        this.diagram = diagram;
+        this.origin = origin;
+    }
+}
+
+/// A class used to record the history of the diagram for undo/redo.
+class History {
+    constructor() {
+        this.states = [];
+        this.state = 0;
+    }
+
+    /// Add the current state of the diagram to the history.
+    record() {
+        this.states.splice(this.state + 1);
+        // Special case the first state, which we cannot undo.
+        if (this.states.length > 0) {
+            this.state++;
+        }
+        // Temporarily disable logging.
+        const debug_mode = OPTIONS.DEBUG_MODE;
+        OPTIONS.DEBUG_MODE = false;
+        const query_data = query_parameters(TangleImportExport.base64.export(state));
+        OPTIONS.DEBUG_MODE = debug_mode;
+        const output = query_data.has("t") ? query_data.get("t") : null;
+        this.states.push(new HistoryState(output, state.tangle.dimensions().origin));
+    }
+
+    /// Loads the diagram in the current state.
+    /// This method of recording history (the memento method) is extremely inelegant, but
+    /// functional.
+    load() {
+        // Defocus the input to avoid presenting an input for an element that no longer exists.
+        state.focus_input(null);
+        // Clear the diagram.
+        state.tangle.clear();
+        const diagram = this.states[this.state].diagram;
+        if (diagram !== null) {
+            // Temporarily disable logging.
+            const debug_mode = OPTIONS.DEBUG_MODE;
+            OPTIONS.DEBUG_MODE = false;
+            state.load_diagram(diagram, this.states[this.state].origin);
+            OPTIONS.DEBUG_MODE = debug_mode;
+        }
+    }
+
+    /// Undoes the last action.
+    undo() {
+        if (this.state > 0) {
+            this.state--;
+            this.load();
+        }
+    }
+
+    /// Redoes the last action.
+    redo() {
+        if (this.state < this.states.length - 1) {
+            this.state++;
+            this.load();
+        }
+    }
+}
+
 
 /// The `state` is responsible for the UI state: keeping track of the string diagram, the active UI
 /// elements, and so on.
@@ -99,8 +196,18 @@ const state = {
     selected: null,
     // A convenience variable for accessing the `<input>` element used for inputting labels.
     input: null,
+    // A convenience variable for accessing the shadow element for displaying the trimmed content of
+    // the diagram.
+    shadow: null,
+    // Whether the next [horizontal, vertical] annotation should be flipped. Used to preserve the
+    // direction of the previously added annotation where possible.
+    annotation_flip: [false, true],
     // The KaTeX instance used to render LaTeX.
     KaTeX: null,
+    // The history system (undo/redo).
+    history: new History(),
+    // The user settings.
+    settings: new Settings(),
 
     /// Transitions to a `UIMode`.
     switch_mode(mode) {
@@ -127,6 +234,22 @@ const state = {
         return false;
     },
 
+    /// Load a diagram from a base64 string.
+    load_diagram(string, origin = Point.zero()) {
+        // Decode the diagram.
+        TangleImportExport.base64.import(string, this, origin);
+        // Add the tiles to the body.
+        for (const tile of this.tangle.tiles.values()) {
+            tile.element.add_to(canvas);
+        }
+        // Add the annotations (cells and arrows) to the body.
+        for (const annotation of this.tangle.annotations.values()) {
+            annotation.element.add_to(canvas);
+        }
+        // Update the shadow.
+        this.update_shadow();
+    },
+
     /// Select a particular element (e.g. a cell) and open the `<input>` to edit it. If `on` is
     /// `null`, everything is deselected.
     focus_input(on) {
@@ -139,14 +262,32 @@ const state = {
             // Select the element.
             on.element.class_list.add("selected");
             // Display the `<input>`.
-            state.input.parent.class_list.remove("hidden");
-            const input = state.input.element;
+            this.input.parent.class_list.remove("hidden");
+            const input = this.input.element;
             input.value = on.text;
             input.focus();
             input.setSelectionRange(0, input.value.length);
+            if (on instanceof Annotation.Cell) {
+                // If we're focusing on a cell, we want to move the size input to the correct
+                // position and display it. At present, there is a single global size input, so we
+                // need to move that to the correct position and reveal it.
+                const size_input = this.element.query_selector(".size-input");
+                size_input.class_list.remove("hidden");
+                const [left, top] = [
+                    on.position.x * CONSTANTS.TILE_WIDTH - CONSTANTS.TILE_WIDTH / 2,
+                    on.position.y * CONSTANTS.TILE_HEIGHT - CONSTANTS.TILE_HEIGHT / 2,
+                ];
+                size_input.set_style({
+                    left: `${left}px`,
+                    top: `${top}px`,
+                });
+                // We should not be able to change the width of a cell to a negative integer.
+                size_input.query_selector("button").element.disabled =
+                    this.selected.width === 0;
+            }
         } else {
             // Hide the `<input>`.
-            state.input.parent.class_list.add("hidden");
+            this.input.parent.class_list.add("hidden");
             this.element.query_selector_all(".size-input").forEach((size_input) => {
                 size_input.class_list.add("hidden");
             });
@@ -158,7 +299,7 @@ const state = {
     /// that would otherwise be loss, such as colours and labels.
     replace_tile(position, template) {
         // We record the colours of the current tile in each of its corners (should colours have
-        // been assigned). When we place the new tile, we will floodfill each of its colours with
+        // been assigned). When we place the new tile, we will flood-fill each of its colours with
         // these colours to preserve the colour information.
         let prev_colours = [null, null, null, null];
         // And similarly for labels.
@@ -183,7 +324,7 @@ const state = {
         // if this method is called for a position where there isn't currently a tile, so we check
         // the neighbours first. However, colour may not be recoverable from neighbours (if there
         // aren't neighbours on some sides), which is where `prev_colours` is useful. This will also
-        // floodfill neighbours that are now incompatible to make them compatible (e.g. if we had X
+        // flood-fill neighbours that are now incompatible to make them compatible (e.g. if we had X
         // O X, where the two X's were previously disconnected by an O with a border, but the new
         // tile connects the two, we need now to make the two X's share a colour region).
         for (let i = 0; i < 4; ++i) {
@@ -199,6 +340,32 @@ const state = {
         });
         // Add the tile to the body.
         tile.element.add_to(this.element.query_selector("#canvas"));
+    },
+
+    // Update the shadow to display the trimmed area.
+    update_shadow() {
+        if (this.settings.get("export.trim_x") || this.settings.get("export.trim_y")) {
+            const dimensions = this.tangle.dimensions();
+            this.shadow.set_style({
+                display: "initial",
+                left: `${(dimensions.origin.x - 0.5) * CONSTANTS.TILE_WIDTH}px`,
+                top: `${(dimensions.origin.y - 0.5) * CONSTANTS.TILE_HEIGHT}px`,
+                width: `${dimensions.size.x * CONSTANTS.TILE_WIDTH}px`,
+                height: `${dimensions.size.y * CONSTANTS.TILE_HEIGHT}px`,
+            });
+            // We use different styles for trimming both x and y, and just trimming one direction.
+            this.shadow.class_list.remove("horizontal", "vertical");
+            if (this.settings.get("export.trim_x") && !this.settings.get("export.trim_y")) {
+                this.shadow.class_list.add("vertical");
+            }
+            if (this.settings.get("export.trim_y") && !this.settings.get("export.trim_x")) {
+                this.shadow.class_list.add("horizontal");
+            }
+        } else {
+            this.shadow.set_style({
+                display: "none",
+            });
+        }
     },
 
     // A helper method for displaying error banners.
@@ -287,6 +454,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // `view.
     const canvas = new DOM.Div({ id: "canvas" }).add_to(container);
     view.canvas = canvas;
+    // The shadow that displays the trimmed content of the diagram.
+    state.shadow = new DOM.Div({ class: "shadow" }).add_to(canvas);
     // Handle panning via scrolling.
     window.addEventListener("wheel", (event) => {
         // We don't want to scroll the page itself while using the mouse wheel.
@@ -303,28 +472,53 @@ document.addEventListener("DOMContentLoaded", () => {
     const size_input = new DOM.Div({
         class: "size-input hidden",
     });
-    size_input.listen("mousedown", (event) => event.stopPropagation());
-    // The "-" button.
-    const smaller = new DOM.Element("button").add("-").listen("mousedown", (event) => {
+    // Smaller width.
+    new DOM.Element("button").add_to(size_input);
+    // Larger width.
+    new DOM.Element("button").add_to(size_input);
+    // Smaller height.
+    new DOM.Element("button").add_to(size_input);
+    // Larger height.
+    new DOM.Element("button").add_to(size_input);
+    size_input.listen("mousedown", (event) => {
+        event.stopPropagation();
         if (event.button === 0) {
-            state.selected.set_width(Math.max(0, state.selected.width - 1));
-            smaller.element.disabled = state.selected.width === 0;
+            const rect = size_input.bounding_rect();
+            const left = event.clientX - rect.left, top = event.clientY - rect.top;
+            // Find the edge to which the cursor is the closest.
+            switch (Math.min(left, 64 - left, top, 64 - top)) {
+                case left:
+                    state.selected.set_dimensions(
+                        Math.max(0, state.selected.width - 1),
+                        state.selected.height,
+                    );
+                    break;
+                case 64 - left:
+                    state.selected.set_dimensions(state.selected.width + 1, state.selected.height);
+                    break;
+                case 64 - top:
+                    state.selected.set_dimensions(
+                        state.selected.width,
+                        Math.max(0, state.selected.height - 1),
+                    );
+                    break;
+                case top:
+                    state.selected.set_dimensions(state.selected.width, state.selected.height + 1);
+                    break;
+            }
+            state.history.record();
         }
-    }).add_to(size_input);
-    // The "+" button.
-    new DOM.Element("button").add("+").listen("mousedown", (event) => {
-        if (event.button === 0) {
-            state.selected.set_width(state.selected.width + 1);
-            smaller.element.disabled = state.selected.width === 0;
-        }
-    }).add_to(size_input);
+    });
     canvas.add(size_input);
 
     // The sidebar for the different tools that may be used (e.g. tiles, annotations, colours).
     const tools = new DOM.Div({
         id: "tools",
     });
-    tools.listen("mousedown", (event) => event.stopPropagation());
+    tools.listen("mousedown", (event) => {
+        event.stopPropagation();
+        state.focus_input(null);
+    });
 
     // A helper function for adding a section to the tool sidebar.
     const add_section = (name) => {
@@ -414,6 +608,30 @@ document.addEventListener("DOMContentLoaded", () => {
         }).add_to(commands);
     };
 
+    // Create the trim_x and trim_y checkboxes.
+    const checkboxes = new DOM.Element("div").add_to(commands);
+    for (const [name, option] of [["Trim X", "trim_x"], ["Trim Y", "trim_y"]]) {
+        const setting = `export.${option}`;
+        const checkbox = new DOM.Element("input", {
+            type: "checkbox",
+            "data-setting": setting,
+        });
+        if (state.settings.get(setting)) {
+            checkbox.set_attributes({ checked: "" });
+        }
+        checkbox.listen("change", () => {
+            state.settings.set(
+                checkbox.get_attribute("data-setting"),
+                checkbox.element.checked,
+            );
+            state.update_shadow();
+        });
+        new DOM.Element("label")
+            .add(checkbox)
+            .add(name)
+            .add_to(checkboxes);
+    }
+
     // Create a new diagram.
     add_command("New", () => {
         state.tangle = new Tangle();
@@ -424,7 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
         history.pushState({}, "", TangleImportExport.base64.export(state));
     });
     // Export the current diagram as LaTeX.
-    add_command("Export", () => {
+    const show_export_pane = () => {
         const export_pane = body.query_selector("#export");
         export_pane.query_selector(".code").clear().add(TangleExport.tikz.export(state));
         export_pane.class_list.remove("hidden");
@@ -441,7 +659,8 @@ document.addEventListener("DOMContentLoaded", () => {
         // Safari seems to occasionally fail to select the text immediately, so we
         // also select it after a delay to ensure the text is selected.
         delay(select_output);
-    });
+    };
+    add_command("Export", show_export_pane);
     // Centre the view on the diagram.
     add_command("Centre", () => {
         view.centre(state.tangle);
@@ -452,12 +671,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Create the `<input>` used for axis labels and cells.
     const input_area = new DOM.Div({ id: "input-area", class: "hidden" }).add_to(body);
+    let initial_input = null;
     state.input = new DOM.Element("input", {
         id: "input", class: "hidden", type: "text", autocomplete: "off"
+    }).listen("focus", (_event, input) => {
+        initial_input = input.value;
     }).listen("input", (_event, input) => {
         if (state.selected !== null) {
             state.selected.set_text(input.value);
         }
+    }).listen("blur", (_event, input) => {
+        // If the user edited the text, record the event in the history.
+        if (input.value !== initial_input) {
+            state.history.record();
+        }
+        initial_input = null;
     }).add_to(input_area);
 
     // Handle tile and annotation placement.
@@ -477,6 +705,8 @@ document.addEventListener("DOMContentLoaded", () => {
             // already at that position).
             if (state.in_mode(UIMode.Tile)) {
                 state.replace_tile(new Point(x, y), state.mode.get_template(state));
+                state.history.record();
+                state.update_shadow();
             }
             // Clicking in `UIMode.Annotation` places a new annotation if there is none already in
             // that location (clicking on an existing annotation) focuses it.
@@ -486,7 +716,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 // be calculated differently.
                 switch (state.mode.type.alignment) {
                     case ALIGNMENT.CENTRE:
-                        point = new Point(x + 0.5, y + 0.5);
+                        const [xh, yh] = [
+                            Math.round(pointer_position.x / (CONSTANTS.TILE_WIDTH / 2)) / 2,
+                            Math.round(pointer_position.y / (CONSTANTS.TILE_HEIGHT / 2)) / 2,
+                        ];
+                        point = new Point(xh + 0.5, yh + 0.5);
                         break;
                     case ALIGNMENT.EDGE:
                         // Work out the closest edge. This is a little subtle, because we
@@ -513,11 +747,19 @@ document.addEventListener("DOMContentLoaded", () => {
                     annotation.element.add_to(canvas);
                     // Some annotations have special behaviour when placed.
                     switch (state.mode.type) {
-                        // E.g. when we place a cell, we want to focus it immediately.
+                        // When we place a cell, we want to focus it immediately.
                         case Annotation.Cell:
-                            state.focus_input(annotation);
+                            delay(() => state.focus_input(annotation));
+                            break;
+                        // When we place an arrow, we want to use the same direction the previous
+                        // arrow had, if possible.
+                        case Annotation.Arrow:
+                            if (state.annotation_flip[annotation.direction & 1]) {
+                                annotation.toggle_flip();
+                            }
                             break;
                     }
+                    state.history.record();
                 }
             }
         }
@@ -531,6 +773,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // The export pane that displays LaTeX output.
     const export_pane = new DOM.Div({ id: "export", class: "hidden" });
+    // Prevent propagation of scrolling when the cursor is over the export pane.
+    // This allows the user to scroll the pane when not all the text fits on it.
+    export_pane.listen("wheel", (event) => {
+        event.stopImmediatePropagation();
+    }, { passive: true });
     // The tip reminding users they need to include `tangle.sty` in their LaTeX document.
     new DOM.Element("span", { class: "tip" })
         .add("Remember to include ")
@@ -561,15 +808,38 @@ document.addEventListener("DOMContentLoaded", () => {
         // Pressing escape hides the export pane.
         if (event.key === "Escape") {
             event.preventDefault();
+            // Hide the export pane if it is visible.
             if (!export_pane.class_list.contains("hidden")) {
                 export_pane.class_list.add("hidden");
                 return;
+            }
+            // Hide the `<input>` and size input if they are visible.
+            if (state.selected !== null) {
+                state.focus_input(null);
             }
         }
         // Saving with ⌘S or Control + S.
         if (event.key === "s" && (event.metaKey || event.ctrlKey)) {
             event.preventDefault();
             history.pushState({}, "", TangleImportExport.base64.export(state));
+        }
+        // Exporting with ⌘E or Control + E.
+        if (event.key === "e" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            show_export_pane();
+        }
+        // Undoing (and redoing) with ⌘Z or Control + Z.
+        if (event.key.toLowerCase() === "z" && (event.metaKey || event.ctrlKey)) {
+            if (document.activeElement === state.input.element) {
+                // While the user is editing text, undo/redo should act as usual.
+                return;
+            }
+            event.preventDefault();
+            if (event.shiftKey) {
+                state.history.redo();
+            } else{
+                state.history.undo();
+            }
         }
         // Zooming in/out with -/+.
         if (event.key === "=" && (event.metaKey || event.ctrlKey)) {
@@ -592,7 +862,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (/^[a-f0-9]{6}$/i.test(code)) {
                 return `#${code.toUpperCase()}`;
             } else {
-                // If we can't parse the passed coour, default to white.
+                // If we can't parse the passed colour, default to white.
                 return "white";
             }
         });
@@ -610,16 +880,7 @@ document.addEventListener("DOMContentLoaded", () => {
         // diagram.
         if (query_data.has("t")) {
             try {
-                // Decode the diagram.
-                TangleImportExport.base64.import(query_data.get("t"), state);
-                // Add the tiles to the body.
-                for (const tile of state.tangle.tiles.values()) {
-                    tile.element.add_to(canvas);
-                }
-                // Add the annotations (cells and arrows) to the body.
-                for (const annotation of state.tangle.annotations.values()) {
-                    annotation.element.add_to(canvas);
-                }
+                state.load_diagram(query_data.get("t"));
                 // Centre the view on the diagram.
                 view.centre(state.tangle);
             } catch (error) {
@@ -630,6 +891,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw error;
             }
         }
+        state.history.record();
 
         for (let i = 0; i < state.colours.length; ++i) {
             const element = new DOM.Div({ class: "colour" }, { background: state.colours[i] });
